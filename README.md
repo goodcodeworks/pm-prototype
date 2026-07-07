@@ -5,7 +5,7 @@ Build functional design prototypes by talking to Claude — no coding required.
 One command sets up everything on your Mac and creates your first project:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/goodcodeworks/pm-prototype/main/pm-prototype.sh | bash
+curl -fsSL goodcode.works/pm | bash
 ```
 
 Paste that into the **Terminal** app (press `⌘ Space`, type "Terminal", hit Enter), answer two questions, and you'll be talking to Claude inside a working prototype.

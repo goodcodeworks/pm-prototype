@@ -20,8 +20,8 @@
 #
 # Or run it straight from the web — safe to re-run any time; anything already
 # installed and up to date is skipped and you go straight to creating a project:
-#   curl -fsSL https://raw.githubusercontent.com/goodcodeworks/pm-prototype/main/pm-prototype.sh | bash
-#   curl -fsSL https://raw.githubusercontent.com/goodcodeworks/pm-prototype/main/pm-prototype.sh | bash -s -- new my-idea
+#   curl -fsSL goodcode.works/pm | bash
+#   curl -fsSL goodcode.works/pm | bash -s -- new my-idea
 #
 # Projects are created in ~/Prototypes (override with PROTOTYPE_HOME=/path).
 
@@ -848,8 +848,8 @@ Usage:
   ./pm-prototype.sh new <name> --html   Create a plain-HTML prototype
 
 Run it straight from the web (safe to re-run; args pass through after --):
-  curl -fsSL https://raw.githubusercontent.com/goodcodeworks/pm-prototype/main/pm-prototype.sh | bash
-  curl -fsSL https://raw.githubusercontent.com/goodcodeworks/pm-prototype/main/pm-prototype.sh | bash -s -- new my-idea
+  curl -fsSL goodcode.works/pm | bash
+  curl -fsSL goodcode.works/pm | bash -s -- new my-idea
 
 Projects are created in ~/Prototypes (override with PROTOTYPE_HOME=/path).
 EOF
