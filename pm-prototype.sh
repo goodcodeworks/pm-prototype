@@ -4,7 +4,8 @@
 # with Claude Code on a Mac.
 #
 # What it does:
-#   1. Installs anything missing: Homebrew, Node.js, Claude Code CLI
+#   1. Installs anything missing: Homebrew, Node.js, Claude Code CLI,
+#      and Superwhisper (dictation — speak your prompts instead of typing)
 #   2. Creates a prototype project preloaded with realistic mock data:
 #        - Next.js (TypeScript + Tailwind) for interactive, multi-page prototypes
 #        - Plain HTML for zero-install single-page mockups
@@ -159,6 +160,22 @@ ensure_claude() {
   ok "Claude Code installed"
 }
 
+ensure_superwhisper() {
+  # Superwhisper (superwhisper.com): dictation, so PMs can speak their prompts.
+  # Optional nice-to-have — never blocks setup if it can't install.
+  if [[ -d "/Applications/superwhisper.app" || -d "$HOME/Applications/superwhisper.app" ]]; then
+    ok "Superwhisper is installed"
+    return
+  fi
+  ensure_homebrew
+  say "Installing Superwhisper (dictation — speak your prompts instead of typing)..."
+  if brew install --cask superwhisper >/dev/null 2>&1; then
+    ok "Superwhisper installed — open it once from Applications to set up your mic"
+  else
+    warn "Couldn't install Superwhisper automatically — it's optional; grab it at https://superwhisper.com"
+  fi
+}
+
 ensure_cc_alias() {
   # 'cc' as a shortcut for 'claude' in new Terminal windows. If any cc alias
   # already exists (theirs or ours), leave it alone.
@@ -189,6 +206,7 @@ cmd_setup() {
   ensure_claude
   update_claude
   ensure_cc_alias
+  ensure_superwhisper
   echo
   ok "Everything is installed and up to date."
   printf "  %sFirst time?%s Run %sclaude%s in any folder and follow the sign-in prompts once.\n" "$BOLD" "$NC" "$BOLD" "$NC"
