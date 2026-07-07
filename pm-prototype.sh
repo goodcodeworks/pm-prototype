@@ -159,6 +159,19 @@ ensure_claude() {
   ok "Claude Code installed"
 }
 
+ensure_cc_alias() {
+  # 'cc' as a shortcut for 'claude' in new Terminal windows. If any cc alias
+  # already exists (theirs or ours), leave it alone.
+  local rc="$HOME/.zshrc"
+  if grep -q '^alias cc=' "$rc" 2>/dev/null; then
+    ok "'cc' shortcut for claude is set up"
+    return
+  fi
+  say "Adding 'cc' as a shortcut for claude..."
+  printf '\nalias cc="claude"  # added by pm-prototype.sh\n' >> "$rc"
+  ok "'cc' shortcut added — works in new Terminal windows"
+}
+
 update_claude() {
   # A fresh install is already current — only check on re-runs.
   [[ "$CLAUDE_JUST_INSTALLED" == "1" ]] && return 0
@@ -175,6 +188,7 @@ cmd_setup() {
   ensure_node
   ensure_claude
   update_claude
+  ensure_cc_alias
   echo
   ok "Everything is installed and up to date."
   printf "  %sFirst time?%s Run %sclaude%s in any folder and follow the sign-in prompts once.\n" "$BOLD" "$NC" "$BOLD" "$NC"
@@ -475,6 +489,8 @@ cd "$dir"
 claude
 \`\`\`
 
+(Tip: \`cc\` works as a shortcut for \`claude\`.)
+
 Then just describe what you want, for example:
 
 - "Build a dashboard page using the KPI and revenue mock data"
@@ -506,6 +522,8 @@ Open the Terminal app and run:
 cd "$dir"
 claude
 \`\`\`
+
+(Tip: \`cc\` works as a shortcut for \`claude\`.)
 
 Then just describe what you want, for example:
 
@@ -726,7 +744,7 @@ print_next_steps() {
   printf "%s─────────────────────────────────────────────%s\n" "$BOLD" "$NC"
   printf "%sYour prototype is ready.%s Next steps:\n\n" "$BOLD" "$NC"
   printf "  1. %scd \"%s\"%s\n" "$BOLD" "$dir" "$NC"
-  printf "  2. %sclaude%s   (sign in if it's your first time)\n" "$BOLD" "$NC"
+  printf "  2. %sclaude%s   (or just %scc%s — sign in if it's your first time)\n" "$BOLD" "$NC" "$BOLD" "$NC"
   printf "  3. Describe what you want to build\n"
   if [[ "$kind" == "next" ]]; then
     printf "\n  Preview: run %snpm run dev%s in a second tab, open http://localhost:3000\n" "$BOLD" "$NC"

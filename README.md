@@ -12,7 +12,7 @@ Paste that into the **Terminal** app (press `⌘ Space`, type "Terminal", hit En
 
 ## What it does
 
-1. Installs anything missing: Homebrew, Node.js, and the Claude Code CLI
+1. Installs anything missing: Homebrew, Node.js, and the Claude Code CLI (plus a `cc` shortcut, so typing `cc` opens Claude)
 2. Asks what you want to call your prototype and what kind:
    - **Next.js** — interactive web app: dashboards, flows, multi-page (recommended)
    - **Plain HTML** — a single page that opens instantly, no server
