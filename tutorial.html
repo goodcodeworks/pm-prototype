@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>First time? · PM Prototype Studio</title>
+<meta name="description" content="A ten-minute animated walkthrough: from a blank Mac to a working prototype you built by talking to Claude.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✳️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,300..900,0..100,0..1&family=Schibsted+Grotesk:ital,wght@0,400..900;1,400..900&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#faf5ec;
+  --paper-deep:#f3ecdd;
+  --ink:#221e19;
+  --ink-soft:#5b544a;
+  --accent:#d8481f;
+  --accent-deep:#b03a17;
+  --leaf:#3d6b4f;
+  --term-bg:#191521;
+  --term-edge:#2c2536;
+  --term-text:#ece6d9;
+  --term-dim:#847d92;
+  --term-green:#8fd694;
+  --term-amber:#ffc46b;
+  --term-cyan:#87d7e8;
+  --term-accent:#ff7e55;
+  --serif:"Fraunces",Georgia,serif;
+  --sans:"Schibsted Grotesk",-apple-system,"Helvetica Neue",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{
+  font-family:var(--sans);
+  background:var(--paper);
+  color:var(--ink);
+  line-height:1.6;
+  overflow-x:hidden;
+}
+/* paper grain + faint grid */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:4;opacity:.5;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.035 0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:3;
+  background:
+    linear-gradient(to right, rgba(34,30,25,.045) 1px, transparent 1px) 0 0/ 96px 100%,
+    radial-gradient(1200px 500px at 85% -5%, rgba(216,72,31,.07), transparent 65%);
+  mask-image:linear-gradient(to bottom, black 0%, transparent 30%);
+  -webkit-mask-image:linear-gradient(to bottom, black 0%, transparent 30%);
+}
+::selection{background:var(--accent);color:var(--paper)}
+a{color:var(--accent-deep);text-decoration-thickness:1.5px;text-underline-offset:3px}
+.wrap{max-width:1060px;margin:0 auto;padding:0 24px}
+
+/* ── Hero ─────────────────────────────────────────── */
+.hero{padding:88px 0 40px;position:relative}
+.kicker{
+  display:inline-flex;align-items:center;gap:10px;
+  font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--accent-deep);
+}
+.kicker::before{content:"";width:34px;height:1.5px;background:var(--accent)}
+h1{
+  font-family:var(--serif);
+  font-variation-settings:"opsz" 144,"SOFT" 40,"WONK" 1;
+  font-weight:560;
+  font-size:clamp(44px,8.2vw,96px);
+  line-height:.98;letter-spacing:-.015em;
+  margin:22px 0 26px;max-width:14ch;
+}
+h1 em{font-style:italic;color:var(--accent);font-variation-settings:"opsz" 144,"SOFT" 70,"WONK" 1}
+.dek{font-size:clamp(17px,2.2vw,21px);color:var(--ink-soft);max-width:52ch;font-weight:450}
+.dek strong{color:var(--ink);font-weight:600}
+.hero-meta{
+  display:flex;gap:26px;flex-wrap:wrap;margin-top:30px;
+  font-family:var(--mono);font-size:12.5px;color:var(--ink-soft);
+}
+.hero-meta span b{color:var(--ink);font-weight:600}
+
+.cmdcard{
+  margin-top:36px;display:inline-flex;align-items:center;gap:0;
+  background:var(--ink);border-radius:14px;padding:6px;
+  box-shadow:0 18px 40px -18px rgba(34,30,25,.55), 0 2px 0 rgba(34,30,25,.15);
+  max-width:100%;
+}
+.cmdcard code{
+  font-family:var(--mono);font-size:clamp(13px,2.4vw,17px);font-weight:500;
+  color:var(--term-text);padding:12px 18px;white-space:nowrap;overflow-x:auto;
+}
+.cmdcard code .p{color:var(--term-accent)}
+.copybtn{
+  flex:none;font-family:var(--sans);font-weight:700;font-size:14px;
+  background:var(--accent);color:#fff;border:0;border-radius:9px;
+  padding:12px 18px;cursor:pointer;transition:transform .15s ease,background .15s ease;
+}
+.copybtn:hover{background:#e9561f;transform:translateY(-1px)}
+.copybtn:active{transform:translateY(0)}
+.copybtn:focus-visible,.replay:focus-visible,.pcard:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.copybtn.done{background:var(--leaf)}
+
+/* ── Player section ───────────────────────────────── */
+.player{padding:46px 0 30px}
+.stage{
+  position:relative;
+}
+.termwin{
+  background:var(--term-bg);
+  border:1px solid var(--term-edge);
+  border-radius:16px;
+  box-shadow:
+    0 40px 80px -30px rgba(25,21,33,.55),
+    0 12px 28px -14px rgba(25,21,33,.4);
+  overflow:hidden;
+  transform:rotate(-.4deg);
+}
+@media (max-width:720px){.termwin{transform:none}}
+.termbar{
+  display:flex;align-items:center;gap:8px;
+  padding:13px 16px;background:linear-gradient(#241e30,#1d1827);
+  border-bottom:1px solid var(--term-edge);
+}
+.dot{width:12px;height:12px;border-radius:50%}
+.dot.r{background:#ff5f57}.dot.y{background:#febc2e}.dot.g{background:#28c840}
+.termtitle{
+  margin-left:auto;margin-right:auto;transform:translateX(-26px);
+  font-family:var(--mono);font-size:12px;color:var(--term-dim);
+}
+.termbody{
+  padding:22px 24px 28px;
+  font-family:var(--mono);font-size:13.5px;line-height:1.75;
+  min-height:430px;max-height:430px;overflow-y:auto;
+  color:var(--term-text);
+  scrollbar-width:thin;scrollbar-color:var(--term-edge) transparent;
+}
+@media (max-width:720px){.termbody{font-size:12px;padding:16px 14px 22px;min-height:380px;max-height:380px}}
+.termbody .ln{white-space:pre-wrap;word-break:break-word;min-height:1.75em}
+.c-dim{color:var(--term-dim)}
+.c-grn{color:var(--term-green)}
+.c-amb{color:var(--term-amber)}
+.c-cyn{color:var(--term-cyan)}
+.c-acc{color:var(--term-accent)}
+.c-bold{font-weight:600}
+.cursor{
+  display:inline-block;width:.62em;height:1.15em;vertical-align:text-bottom;
+  background:var(--term-accent);
+  animation:blink 1.06s steps(1) infinite;
+}
+@keyframes blink{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.cursor{animation:none}}
+
+.phaserail{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:10px;
+  margin-top:22px;
+}
+.phase{
+  border-top:2px solid rgba(34,30,25,.18);
+  padding-top:10px;
+  font-size:13px;color:var(--ink-soft);
+  transition:color .3s ease,border-color .3s ease;
+}
+.phase .pn{font-family:var(--mono);font-size:11px;letter-spacing:.14em;display:block;margin-bottom:2px}
+.phase.on{border-color:var(--accent);color:var(--ink)}
+.phase.on .pn{color:var(--accent-deep)}
+.playerfoot{display:flex;align-items:center;gap:16px;margin-top:18px;flex-wrap:wrap}
+.replay{
+  font-family:var(--sans);font-weight:700;font-size:14px;
+  background:transparent;color:var(--ink);border:1.5px solid var(--ink);
+  border-radius:999px;padding:9px 20px;cursor:pointer;
+  transition:background .15s ease,color .15s ease;
+}
+.replay:hover{background:var(--ink);color:var(--paper)}
+.playerfoot small{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft)}
+
+/* ── Chapters ─────────────────────────────────────── */
+.chapters{padding:50px 0 10px;counter-reset:ch;list-style:none}
+.chapter{
+  display:grid;grid-template-columns:minmax(90px,150px) 1fr;gap:20px 34px;
+  padding:58px 0;border-top:1.5px solid rgba(34,30,25,.14);
+  align-items:start;
+}
+@media (max-width:720px){.chapter{grid-template-columns:1fr;padding:44px 0}}
+.chapter .num{
+  font-family:var(--serif);
+  font-variation-settings:"opsz" 144,"SOFT" 100,"WONK" 1;
+  font-weight:400;font-style:italic;
+  font-size:clamp(56px,7vw,84px);line-height:.9;
+  color:var(--accent);
+  transform:rotate(-3deg);
+  transition:transform .3s ease;
+}
+.chapter:hover .num{transform:rotate(1.5deg) scale(1.04)}
+.chapter h2{
+  font-family:var(--serif);font-variation-settings:"opsz" 60,"SOFT" 30;
+  font-weight:600;font-size:clamp(24px,3.4vw,32px);line-height:1.15;
+  margin-bottom:12px;letter-spacing:-.01em;
+}
+.chapter p{max-width:58ch;color:var(--ink-soft);font-size:16.5px}
+.chapter p+p{margin-top:12px}
+.chapter p strong{color:var(--ink)}
+.chapter kbd{
+  font-family:var(--mono);font-size:.85em;font-weight:600;
+  background:var(--paper-deep);border:1px solid rgba(34,30,25,.25);
+  border-bottom-width:2.5px;border-radius:6px;padding:2px 7px;color:var(--ink);
+  white-space:nowrap;
+}
+.chapter code.inline{
+  font-family:var(--mono);font-size:.88em;background:var(--paper-deep);
+  border:1px solid rgba(34,30,25,.14);border-radius:6px;padding:2px 7px;color:var(--ink);
+}
+.note{
+  margin-top:18px;padding:14px 18px;border-left:3px solid var(--leaf);
+  background:rgba(61,107,79,.07);border-radius:0 10px 10px 0;
+  font-size:15px;color:var(--ink-soft);max-width:58ch;
+}
+.note b{color:var(--leaf)}
+.note--amber{border-color:#c98a2b;background:rgba(201,138,43,.08)}
+.note--amber b{color:#a06a1a}
+
+/* spotlight mockup */
+.spot{
+  margin-top:22px;max-width:430px;
+  background:rgba(250,245,236,.82);
+  border:1px solid rgba(34,30,25,.16);border-radius:14px;
+  box-shadow:0 22px 44px -22px rgba(34,30,25,.35);
+  padding:14px 18px;display:flex;align-items:center;gap:12px;
+  backdrop-filter:blur(4px);
+}
+.spot svg{flex:none;opacity:.55}
+.spot .stext{font-size:19px;font-weight:500;color:var(--ink)}
+.spot .stext::after{content:"";display:inline-block;width:2px;height:1.1em;background:var(--accent);vertical-align:text-bottom;margin-left:2px;animation:blink 1.06s steps(1) infinite}
+.spot .shint{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-soft);white-space:nowrap}
+
+/* choice cards */
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:22px;max-width:620px}
+@media (max-width:640px){.choices{grid-template-columns:1fr}}
+.choice{
+  border:1.5px solid rgba(34,30,25,.18);border-radius:14px;padding:18px;
+  background:rgba(255,255,255,.45);position:relative;
+}
+.choice.reco{border-color:var(--accent);box-shadow:0 14px 30px -18px rgba(216,72,31,.45)}
+.choice .tag{
+  position:absolute;top:-11px;left:14px;
+  font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  background:var(--accent);color:#fff;border-radius:999px;padding:3px 10px;font-weight:600;
+}
+.choice h3{font-family:var(--serif);font-weight:600;font-size:19px;margin-bottom:6px}
+.choice p{font-size:14.5px;max-width:none}
+.choice .kn{font-family:var(--mono);font-size:12px;color:var(--accent-deep);font-weight:600}
+
+/* prompt recipe cards */
+.prompts{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:22px;max-width:680px}
+@media (max-width:640px){.prompts{grid-template-columns:1fr}}
+.pcard{
+  text-align:left;font-family:var(--sans);
+  border:1.5px dashed rgba(34,30,25,.3);border-radius:14px;padding:16px 18px;
+  background:transparent;cursor:pointer;color:var(--ink);
+  font-size:15px;line-height:1.5;
+  transition:border-color .15s ease,background .15s ease,transform .15s ease;
+}
+.pcard:hover{border-color:var(--accent);background:rgba(216,72,31,.05);transform:translateY(-2px)}
+.pcard .plabel{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-deep);margin-bottom:6px}
+.pcard.done{border-style:solid;border-color:var(--leaf);background:rgba(61,107,79,.06)}
+.pcard.done .plabel{color:var(--leaf)}
+
+/* mini terminal for chapter 6 */
+.miniterm{
+  margin-top:22px;max-width:520px;background:var(--term-bg);
+  border-radius:12px;overflow:hidden;border:1px solid var(--term-edge);
+  box-shadow:0 20px 40px -24px rgba(25,21,33,.6);
+}
+.miniterm .termbar{padding:10px 14px}
+.miniterm pre{
+  font-family:var(--mono);font-size:12.5px;line-height:1.8;color:var(--term-text);
+  padding:14px 18px;overflow-x:auto;
+}
+
+/* FAQ */
+.faq{padding:40px 0 30px;border-top:1.5px solid rgba(34,30,25,.14)}
+.faq h2{font-family:var(--serif);font-weight:600;font-size:clamp(26px,3.6vw,34px);margin-bottom:22px}
+.faq details{
+  border-bottom:1px solid rgba(34,30,25,.13);
+  max-width:760px;
+}
+.faq summary{
+  cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:14px;
+  padding:16px 0;font-weight:600;font-size:16.5px;
+}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::before{
+  content:"+";font-family:var(--serif);color:var(--accent);font-size:22px;line-height:1;
+  transition:transform .2s ease;flex:none;
+}
+.faq details[open] summary::before{transform:rotate(45deg)}
+.faq details p{color:var(--ink-soft);padding:0 0 18px 36px;max-width:62ch;font-size:15.5px}
+.faq details code{font-family:var(--mono);font-size:.88em;background:var(--paper-deep);border:1px solid rgba(34,30,25,.14);border-radius:6px;padding:1px 6px}
+
+/* footer */
+footer{
+  margin-top:40px;padding:34px 0 60px;border-top:1.5px solid rgba(34,30,25,.14);
+  display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  font-family:var(--mono);font-size:12.5px;color:var(--ink-soft);
+}
+footer .mark{font-family:var(--serif);font-style:italic;font-size:15px;color:var(--ink)}
+
+/* reveal on scroll */
+[data-reveal]{opacity:0;transform:translateY(26px);transition:opacity .7s ease,transform .7s ease}
+[data-reveal].in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){
+  [data-reveal]{opacity:1;transform:none;transition:none}
+  .spot .stext::after{animation:none}
+}
+</style>
+</head>
+<body>
+
+<header class="hero wrap">
+  <span class="kicker">PM Prototype Studio · First-time guide</span>
+  <h1>Describe it.<br>Watch it <em>build.</em></h1>
+  <p class="dek">Ten minutes from a blank Mac to a working prototype — <strong>no coding, no setup wizardry.</strong> You paste one line, answer two questions, and then you just talk.</p>
+  <div class="cmdcard">
+    <code><span class="p">$</span> curl -fsSL goodcode.works/pm | bash</code>
+    <button class="copybtn" data-copy="curl -fsSL goodcode.works/pm | bash">Copy</button>
+  </div>
+  <div class="hero-meta">
+    <span><b>~10 min</b> first time</span>
+    <span><b>~40 sec</b> every time after</span>
+    <span><b>0</b> things you can break</span>
+  </div>
+</header>
+
+<section class="player wrap" aria-label="Animated walkthrough of the setup">
+  <div class="stage" data-reveal>
+    <div class="termwin">
+      <div class="termbar" aria-hidden="true">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="termtitle">Terminal — zsh</span>
+      </div>
+      <div class="termbody" id="term" aria-hidden="true"></div>
+    </div>
+    <div class="phaserail" id="rail">
+      <div class="phase" data-p="0"><span class="pn">ACT I</span>The check-up</div>
+      <div class="phase" data-p="1"><span class="pn">ACT II</span>Two questions</div>
+      <div class="phase" data-p="2"><span class="pn">ACT III</span>The build</div>
+      <div class="phase" data-p="3"><span class="pn">ACT IV</span>Lift-off</div>
+    </div>
+    <div class="playerfoot">
+      <button class="replay" id="replay">↺ Replay</button>
+      <small>This is a real recording of what you'll see — trimmed for pace.</small>
+    </div>
+  </div>
+</section>
+
+<main class="wrap">
+<ol class="chapters">
+
+  <li class="chapter" data-reveal>
+    <div class="num" aria-hidden="true">01</div>
+    <div>
+      <h2>Open Terminal — yes, you</h2>
+      <p>Terminal is just a text box where your Mac listens. Press <kbd>⌘</kbd> <kbd>space</kbd>, type <strong>Terminal</strong>, hit <kbd>return</kbd>. A plain window appears with a blinking cursor. That's the whole app.</p>
+      <div class="spot" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <span class="stext">Terminal</span>
+        <span class="shint">⌘ space</span>
+      </div>
+    </div>
+  </li>
+
+  <li class="chapter" data-reveal>
+    <div class="num" aria-hidden="true">02</div>
+    <div>
+      <h2>Paste the one line</h2>
+      <p>Copy the command from the top of this page, paste it into Terminal, and press <kbd>return</kbd>. It checks your Mac and installs anything missing: <strong>Homebrew</strong> (an app installer), <strong>Node.js</strong> (runs your prototype), <strong>Claude Code</strong> (the part you talk to), and <strong>Superwhisper</strong> (dictation, so you can literally talk).</p>
+      <p>First time, installs can take a few minutes — let it run.</p>
+      <div class="note note--amber"><b>If it asks for a password:</b> that's your normal Mac login password. Terminal won't show dots while you type it. Type it blind and press return — that's normal.</div>
+      <div class="note"><b>Safe to re-run.</b> Run the same line tomorrow and it skips everything that's already installed and jumps straight to making a new project.</div>
+    </div>
+  </li>
+
+  <li class="chapter" data-reveal>
+    <div class="num" aria-hidden="true">03</div>
+    <div>
+      <h2>Answer two questions</h2>
+      <p>It asks what to call your prototype — pick anything, like <code class="inline">checkout-redesign</code> — and what kind to make:</p>
+      <div class="choices">
+        <div class="choice reco">
+          <span class="tag">Recommended</span>
+          <h3>Next.js <span class="kn">— press 1</span></h3>
+          <p>A real interactive web app. Dashboards, multi-step flows, clickable everything. Best for almost every idea.</p>
+        </div>
+        <div class="choice">
+          <h3>Plain HTML <span class="kn">— press 2</span></h3>
+          <p>One page that opens instantly in your browser. Great for a quick landing page or a static mockup.</p>
+        </div>
+      </div>
+      <p style="margin-top:18px">Every project comes pre-loaded with <strong>realistic fake data</strong> — users, orders, revenue, KPIs — so your first screen looks real from minute one.</p>
+    </div>
+  </li>
+
+  <li class="chapter" data-reveal>
+    <div class="num" aria-hidden="true">04</div>
+    <div>
+      <h2>Sign in — once, ever</h2>
+      <p>When Claude opens for the first time, it pops your browser to sign in with your Anthropic account. Click through, come back to Terminal, done. You will never be asked again on this Mac.</p>
+    </div>
+  </li>
+
+  <li class="chapter" data-reveal>
+    <div class="num" aria-hidden="true">05</div>
+    <div>
+      <h2>Now just talk to it</h2>
+      <p>This is the whole trick: <strong>describe outcomes, not code.</strong> Say what you want like you'd brief a designer. Claude writes everything, tells you what it did in plain language, and asks when it needs a decision. Steal one of these to start:</p>
+      <div class="prompts">
+        <button class="pcard" data-copy="Build a dashboard page using the KPI cards and revenue mock data"><span class="plabel">Dashboard · click to copy</span>"Build a dashboard page using the KPI cards and revenue mock data"</button>
+        <button class="pcard" data-copy="Add a customers page with search and a detail panel"><span class="plabel">CRM-ish · click to copy</span>"Add a customers page with search and a detail panel"</button>
+        <button class="pcard" data-copy="Make a 3-step onboarding flow with a progress bar"><span class="plabel">Flow · click to copy</span>"Make a 3-step onboarding flow with a progress bar"</button>
+        <button class="pcard" data-copy="Make it feel more premium — better spacing, nicer typography"><span class="plabel">Polish · click to copy</span>"Make it feel more premium — better spacing, nicer typography"</button>
+      </div>
+      <div class="note" style="margin-top:22px"><b>Tip:</b> typing <code class="inline" style="border:0;background:rgba(61,107,79,.12)">cc</code> in any new Terminal window is a shortcut for <code class="inline" style="border:0;background:rgba(61,107,79,.12)">claude</code>.</div>
+      <div class="note" style="margin-top:12px"><b>Hate typing?</b> Setup also installed <strong>Superwhisper</strong> — open it once from Applications, then hold its hotkey and speak. Your words get typed wherever your cursor is, including into Claude.</div>
+    </div>
+  </li>
+
+  <li class="chapter" data-reveal>
+    <div class="num" aria-hidden="true">06</div>
+    <div>
+      <h2>See it live while you talk</h2>
+      <p>Open a <strong>second Terminal tab</strong> (<kbd>⌘</kbd> <kbd>T</kbd>) and run these two lines, then visit <strong>localhost:3000</strong> in your browser. The page updates by itself every time Claude changes something — keep it side-by-side and watch your words become screens.</p>
+      <div class="miniterm" aria-hidden="true">
+        <div class="termbar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="termtitle">Terminal — tab 2</span></div>
+        <pre><span class="c-acc">$</span> cd ~/Prototypes/checkout-redesign
+<span class="c-acc">$</span> npm run dev
+
+<span class="c-grn">✓</span> Ready on <span class="c-cyn">http://localhost:3000</span></pre>
+      </div>
+      <p style="margin-top:18px">(For a plain-HTML project it's even simpler — double-click <code class="inline">index.html</code> and refresh after changes.)</p>
+    </div>
+  </li>
+
+</ol>
+
+<section class="faq" data-reveal>
+  <h2>Things people worry about</h2>
+  <details>
+    <summary>Can I break something on my Mac?</summary>
+    <p>Realistically, no. Everything lives in one folder — <code>~/Prototypes</code> — and prototypes are throwaway by design: no databases, no accounts, nothing deployed. Worst case, you delete the folder and run the line again.</p>
+  </details>
+  <details>
+    <summary>I closed Terminal. How do I get back to my prototype?</summary>
+    <p>Run the same one-liner and type the same project name — it offers to reopen it. Or in Terminal: <code>cd ~/Prototypes/your-project</code> then <code>cc</code>. Every project also has a <code>GETTING_STARTED.md</code> file with these exact steps.</p>
+  </details>
+  <details>
+    <summary>Claude did something I didn't want.</summary>
+    <p>Just tell it. "Undo that" or "that's not what I meant — I wanted X" works. It's a conversation, not a form; you can redirect at any point.</p>
+  </details>
+  <details>
+    <summary>Where does the fake data come from?</summary>
+    <p>Every project ships with a mock-data file (users, orders, KPIs, revenue). Need something specific — menu items, reservations, whatever your idea needs? Ask Claude: "add mock data for X" and build with that.</p>
+  </details>
+  <details>
+    <summary>Something's stuck or looks broken.</summary>
+    <p>Press <code>ctrl</code>+<code>C</code> in Terminal to stop whatever's running, then run the one-liner again. It's built to be re-run — it never double-installs. Still stuck? Ask Claude itself; debugging its own mess is one of its best skills.</p>
+  </details>
+</section>
+
+<footer>
+  <span class="mark">Good Code — PM Prototype Studio</span>
+  <span>the one-liner: <a href="https://goodcode.works/pm">goodcode.works/pm</a> · source on <a href="https://github.com/goodcodeworks/pm-prototype">GitHub</a></span>
+</footer>
+</main>
+
+<script>
+/* ── scroll reveals ── */
+const io = new IntersectionObserver((es)=>{
+  es.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+},{threshold:.12});
+document.querySelectorAll('[data-reveal]').forEach(el=>io.observe(el));
+
+/* ── copy buttons ── */
+document.querySelectorAll('[data-copy]').forEach(btn=>{
+  const orig = btn.classList.contains('copybtn') ? 'Copy' : null;
+  btn.addEventListener('click', async ()=>{
+    try{ await navigator.clipboard.writeText(btn.dataset.copy); }
+    catch(e){
+      const ta=document.createElement('textarea');ta.value=btn.dataset.copy;
+      document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();
+    }
+    btn.classList.add('done');
+    if(orig) btn.textContent='Copied ✓';
+    setTimeout(()=>{ btn.classList.remove('done'); if(orig) btn.textContent=orig; },1800);
+  });
+});
+
+/* ── terminal scene player ── */
+const term = document.getElementById('term');
+const rail = document.getElementById('rail');
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* step types: cmd = user-typed (char by char, after prompt), out = printed line, gap = blank line, wait = pause */
+const SCENE = [
+  {t:'cmd',  p:0, prompt:'$ ', text:'curl -fsSL goodcode.works/pm | bash'},
+  {t:'wait', p:0, ms:600},
+  {t:'gap',  p:0},
+  {t:'out',  p:0, html:'<span class="c-acc c-bold">PM Prototype Studio</span>'},
+  {t:'out',  p:0, html:'<span class="c-dim">Build functional designs by talking to Claude.</span>'},
+  {t:'gap',  p:0},
+  {t:'out',  p:0, html:'<span class="c-cyn">▶</span> Checking your setup...'},
+  {t:'out',  p:0, html:'<span class="c-grn">✓</span> Homebrew is installed', ms:420},
+  {t:'out',  p:0, html:'<span class="c-grn">✓</span> Node.js v22.11.0 is installed', ms:420},
+  {t:'out',  p:0, html:'<span class="c-grn">✓</span> Claude Code 2.1.203 is installed', ms:420},
+  {t:'out',  p:0, html:'<span class="c-grn">✓</span> \'cc\' shortcut for claude is set up', ms:380},
+  {t:'out',  p:0, html:'<span class="c-grn">✓</span> Superwhisper is installed', ms:380},
+  {t:'gap',  p:0},
+  {t:'out',  p:0, html:'<span class="c-grn">✓</span> <span class="c-bold">Everything is installed and up to date.</span>'},
+  {t:'wait', p:0, ms:900},
+  {t:'gap',  p:1},
+  {t:'out',  p:1, html:'What do you want to call your prototype? <span class="c-dim">(e.g. checkout-redesign)</span>'},
+  {t:'cmd',  p:1, prompt:'> ', text:'lunch-rush-dashboard'},
+  {t:'gap',  p:1},
+  {t:'out',  p:1, html:'What kind of prototype?'},
+  {t:'out',  p:1, html:'  <span class="c-amb">1)</span> Next.js — interactive web app <span class="c-dim">(recommended)</span>'},
+  {t:'out',  p:1, html:'  <span class="c-amb">2)</span> Plain HTML — single page, no server'},
+  {t:'cmd',  p:1, prompt:'> ', text:'1'},
+  {t:'wait', p:1, ms:500},
+  {t:'gap',  p:2},
+  {t:'out',  p:2, html:'<span class="c-cyn">▶</span> Creating Next.js app <span class="c-bold">\'lunch-rush-dashboard\'</span> <span class="c-dim">(takes a minute or two)...</span>'},
+  {t:'out',  p:2, html:'<span class="c-dim">  installing packages ██████████████░░░░░░</span>', ms:900},
+  {t:'out',  p:2, html:'<span class="c-cyn">▶</span> Adding mock data and PM configuration...', ms:700},
+  {t:'out',  p:2, html:'<span class="c-grn">✓</span> Next.js prototype created', ms:500},
+  {t:'gap',  p:2},
+  {t:'out',  p:2, html:'<span class="c-bold">Your prototype is ready.</span>'},
+  {t:'wait', p:2, ms:700},
+  {t:'gap',  p:3},
+  {t:'out',  p:3, html:'Start building with Claude right now? <span class="c-dim">[Y/n]</span>'},
+  {t:'cmd',  p:3, prompt:' ', text:'y'},
+  {t:'wait', p:3, ms:800},
+  {t:'gap',  p:3},
+  {t:'out',  p:3, html:'<span class="c-acc c-bold">✻ Claude Code</span>'},
+  {t:'out',  p:3, html:'<span class="c-dim">  Ready when you are — describe what you want to build.</span>'},
+  {t:'gap',  p:3},
+  {t:'cmd',  p:3, prompt:'❯ ', promptClass:'c-acc', text:'Build a dashboard page using the KPI and revenue mock data', speed:26},
+  {t:'wait', p:3, ms:700},
+  {t:'out',  p:3, html:'<span class="c-grn">●</span> On it. Building your dashboard now<span class="c-dim">…</span>'},
+];
+
+let playing=false, token=0;
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const jitter = base => base + Math.random()*base*.9;
+
+function setPhase(p){
+  rail.querySelectorAll('.phase').forEach(el=>{
+    el.classList.toggle('on', Number(el.dataset.p)<=p);
+  });
+}
+function newLine(){
+  const d=document.createElement('div');d.className='ln';term.appendChild(d);
+  term.scrollTop=term.scrollHeight;return d;
+}
+function finishInstant(){
+  term.innerHTML='';
+  SCENE.forEach(s=>{
+    if(s.t==='gap') newLine();
+    else if(s.t==='out') newLine().innerHTML=s.html;
+    else if(s.t==='cmd'){
+      const l=(s.prompt===' '&&term.lastElementChild&&term.lastElementChild.textContent!=='')?term.lastElementChild:newLine();
+      l.innerHTML+='<span class="'+(s.promptClass||'c-acc')+' c-bold">'+s.prompt+'</span>'+s.text;
+    }
+  });
+  setPhase(3); term.scrollTop=term.scrollHeight;
+}
+async function play(){
+  const my=++token;
+  playing=true; term.innerHTML=''; setPhase(-1);
+  if(reduced){ finishInstant(); playing=false; return; }
+  for(const s of SCENE){
+    if(my!==token) return;
+    setPhase(s.p);
+    if(s.t==='wait'){ await sleep(s.ms); continue; }
+    if(s.t==='gap'){ newLine(); await sleep(90); continue; }
+    if(s.t==='out'){
+      newLine().innerHTML=s.html;
+      term.scrollTop=term.scrollHeight;
+      await sleep(s.ms??jitter(150));
+      continue;
+    }
+    if(s.t==='cmd'){
+      let line;
+      if(s.prompt===' ' && term.lastElementChild && term.lastElementChild.textContent!==''){ line=term.lastElementChild; }
+      else line=newLine();
+      line.innerHTML+='<span class="'+(s.promptClass||'c-acc')+' c-bold">'+s.prompt+'</span>';
+      const span=document.createElement('span'); line.appendChild(span);
+      const cur=document.createElement('span'); cur.className='cursor'; line.appendChild(cur);
+      await sleep(s.prompt==='$ '?900:650);
+      for(const ch of s.text){
+        if(my!==token) return;
+        span.textContent+=ch;
+        term.scrollTop=term.scrollHeight;
+        await sleep(jitter(s.speed??34));
+      }
+      await sleep(420); cur.remove();
+    }
+  }
+  playing=false;
+}
+
+/* start when scrolled into view */
+const startIO = new IntersectionObserver((es)=>{
+  es.forEach(e=>{ if(e.isIntersecting){ startIO.disconnect(); setTimeout(play, 400); } });
+},{threshold:.35});
+startIO.observe(document.querySelector('.termwin'));
+
+document.getElementById('replay').addEventListener('click', ()=>{ token++; playing=false; setTimeout(play,60); });
+</script>
+</body>
+</html>

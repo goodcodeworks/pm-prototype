@@ -10,9 +10,11 @@ curl -fsSL goodcode.works/pm | bash
 
 Paste that into the **Terminal** app (press `⌘ Space`, type "Terminal", hit Enter), answer two questions, and you'll be talking to Claude inside a working prototype.
 
+**First time?** Watch the two-minute animated walkthrough first: **[goodcode.works/pm-tutorial](https://goodcode.works/pm-tutorial)**
+
 ## What it does
 
-1. Installs anything missing: Homebrew, Node.js, and the Claude Code CLI (plus a `cc` shortcut, so typing `cc` opens Claude)
+1. Installs anything missing: Homebrew, Node.js, the Claude Code CLI (plus a `cc` shortcut, so typing `cc` opens Claude), and [Superwhisper](https://superwhisper.com) so you can dictate your prompts instead of typing them
 2. Asks what you want to call your prototype and what kind:
    - **Next.js** — interactive web app: dashboards, flows, multi-page (recommended)
    - **Plain HTML** — a single page that opens instantly, no server
