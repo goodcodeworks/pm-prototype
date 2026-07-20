@@ -6,18 +6,19 @@
 # What it does:
 #   1. Installs anything missing: Homebrew, Node.js, Claude Code CLI,
 #      and Superwhisper (dictation — speak your prompts instead of typing)
-#   2. Creates a prototype project preloaded with realistic mock data:
+#   2. Creates a project one of three ways:
 #        - Next.js (TypeScript + Tailwind) for interactive, multi-page prototypes
 #        - Plain HTML for zero-install single-page mockups
-#   3. Drops in a CLAUDE.md tuned for PM prototyping, so Claude keeps
-#      everything client-side, uses the mock data, and explains things
-#      in plain language.
+#        - A copy of a real goodcodeworks app, on your own branch, ready for a PR
+#   3. Drops in Claude instructions tuned for the path you picked, so Claude
+#      explains things in plain language and stays inside the guardrails.
 #
 # Usage:
-#   ./pm-prototype.sh                     # interactive — best for first run
-#   ./pm-prototype.sh setup               # just install/verify the tools
-#   ./pm-prototype.sh new <name>          # create a Next.js prototype
-#   ./pm-prototype.sh new <name> --html   # create a plain-HTML prototype
+#   ./pm-prototype.sh                          # interactive — best for first run
+#   ./pm-prototype.sh setup                    # just install/verify the tools
+#   ./pm-prototype.sh new <name>               # create a Next.js prototype
+#   ./pm-prototype.sh new <name> --html        # create a plain-HTML prototype
+#   ./pm-prototype.sh new <name> --repo <key>  # start from one of our apps
 #
 # Or run it straight from the web — safe to re-run any time; anything already
 # installed and up to date is skipped and you go straight to creating a project:
@@ -29,6 +30,59 @@
 set -euo pipefail
 
 PROTOTYPE_HOME="${PROTOTYPE_HOME:-$HOME/Prototypes}"
+
+# ─── Curated starter apps ────────────────────────────────────────────────────
+# Real goodcodeworks apps a PM can copy and change on their own branch.
+# Format: key|owner/repo|subdir|Label — description
+#   subdir = folder inside the repo that holds the runnable app ("" = repo root)
+# To offer another app, just add a line here — nothing else in the script
+# needs to change.
+
+STARTER_REPOS=(
+  "salon-pos|goodcodeworks/salon-pos|salon-software|Salon POS — booking calendar, clients, and stylist management"
+)
+
+# Anything unusual about a particular repo that Claude needs warning about —
+# a misleading README, a conventions file with rules that fight this workflow,
+# and so on. Keyed by the manifest key; add a case branch per repo that needs
+# one. Repos with nothing odd about them need no entry at all.
+starter_notes() {
+  case "$1" in
+    salon-pos)
+      cat <<'EOF'
+
+## Two things about this repo specifically
+
+**Ignore the files at the top of the repo.** `new-project.sh`,
+`new-project-cli.sh`, and the root `README.md` are leftovers from an unrelated
+project-scaffolding tool. They do not describe this app and will mislead you.
+The app is everything under `salon-software/` — a salon/spa/barber operating
+system called Halo (booking calendar, clients, booth-rental ledger, walk-ins
+and waitlist, online booking portal). All of its data is deterministic mock
+data; there is no backend.
+
+**Read `CONVENTIONS.md` and follow its code-style rules** — especially: add no
+new dependencies, no raw hex colors (use the semantic tokens), no emoji as
+icons (use `lucide-react`), no `Math.random()` / `Date.now()` / `new Date()` at
+module scope (use `seededRandom` / `getToday()` from `@/lib/dates`), and no
+external image assets.
+
+`CONVENTIONS.md` says it wins on conflict, but it was written for a team of
+parallel build agents, not for this PM workflow. **These three of its rules do
+not apply here:**
+
+1. Its rule against running `npm run dev` / `npm run build` — in this workflow
+   running the dev server is expected and encouraged. The PM needs to see their
+   change. Run it.
+2. Its rule "don't commit, leave the working tree dirty" — in this workflow you
+   commit to the PM's `pm/…` branch. That is the entire point.
+3. Its per-agent ownership map restricting which paths you may touch — that is
+   for their multi-agent build. The PM may ask for changes anywhere inside
+   `salon-software/`.
+EOF
+      ;;
+  esac
+}
 
 # Colors (ANSI-C quoted so the bytes are real ESC, not literal \033)
 GREEN=$'\033[0;32m'
@@ -69,8 +123,9 @@ ask_aborted() { # input stream ended mid-conversation — bail out politely
   echo
   warn "Input ended — nothing else was changed."
   printf "To create a project non-interactively, run:\n"
-  printf "  ./pm-prototype.sh new <name>          # Next.js prototype\n"
-  printf "  ./pm-prototype.sh new <name> --html   # plain-HTML prototype\n"
+  printf "  ./pm-prototype.sh new <name>                # Next.js prototype\n"
+  printf "  ./pm-prototype.sh new <name> --html         # plain-HTML prototype\n"
+  printf "  ./pm-prototype.sh new <name> --repo <app>   # start from one of our apps\n"
 }
 
 launch_claude() { # hands the terminal over to claude inside the project
@@ -174,6 +229,50 @@ ensure_superwhisper() {
   else
     warn "Couldn't install Superwhisper automatically — it's optional; grab it at https://superwhisper.com"
   fi
+}
+
+ensure_gh() {
+  # GitHub CLI — only needed when starting from one of our real apps. It's what
+  # lets us copy a private repo and later open a pull request for the PM.
+  if ! command -v gh >/dev/null 2>&1; then
+    ensure_homebrew
+    say "Installing the GitHub tool..."
+    brew install gh || die "Couldn't install the GitHub tool automatically.
+  Ask an engineer for a hand, or install it yourself with: brew install gh"
+    ok "GitHub tool installed"
+  else
+    ok "GitHub tool is installed"
+  fi
+
+  if gh auth status >/dev/null 2>&1; then
+    ok "You're signed in to GitHub"
+    return
+  fi
+
+  echo
+  say "You need to sign in to GitHub once so we can copy the app for you."
+  printf "  GitHub will ask a few short questions in this window. The safe answers:\n"
+  printf "    • Where do you use GitHub? → %sGitHub.com%s\n" "$BOLD" "$NC"
+  printf "    • Preferred protocol?      → %sHTTPS%s\n" "$BOLD" "$NC"
+  printf "    • Authenticate Git?        → %sYes%s\n" "$BOLD" "$NC"
+  printf "    • How to authenticate?     → %sLogin with a web browser%s\n" "$BOLD" "$NC"
+  printf "  Then copy the code it shows you and paste it into the browser page it opens.\n\n"
+
+  # Under `curl | bash` stdin is the script itself, so hand gh the real terminal.
+  if [[ -t 0 ]]; then
+    gh auth login || true
+  elif [[ -r /dev/tty ]]; then
+    gh auth login </dev/tty >/dev/tty 2>&1 || true
+  else
+    die "Signing in to GitHub needs an interactive terminal.
+  Open the Terminal app, run: gh auth login
+  ...then run this script again."
+  fi
+
+  gh auth status >/dev/null 2>&1 || die "GitHub sign-in didn't complete, so I can't copy the app.
+  Open the Terminal app and run: gh auth login
+  Once that finishes, run this script again."
+  ok "Signed in to GitHub"
 }
 
 ensure_cc_alias() {
@@ -495,10 +594,59 @@ EOF
 }
 
 write_getting_started() {
-  local dir="$1" name="$2" kind="$3"
+  # For kind=repo the extra args are: <app dir> <dev command> <branch> [outfile]
+  local dir="$1" name="$2" kind="$3" appdir="${4:-}" devcmd="${5:-}" branch="${6:-}"
+  local out="${7:-$dir/GETTING_STARTED.md}"
   {
     printf '# Getting started with %s\n\n' "$name"
-    if [[ "$kind" == "next" ]]; then
+    if [[ "$kind" == "repo" ]]; then
+      cat <<EOF
+This is a real goodcodeworks app — a full copy of it, on your own branch.
+Nothing you do here touches the live version until someone reviews it.
+
+Open the Terminal app and run:
+
+\`\`\`
+cd "$appdir"
+claude
+\`\`\`
+
+(Tip: \`cc\` works as a shortcut for \`claude\`.)
+
+Then describe the change you want, for example:
+
+- "Walk me through what this app does"
+- "On the booking screen, show the stylist's next free slot"
+- "Make the checkout total easier to read on a phone"
+
+## Seeing the app
+
+In a second Terminal tab:
+
+\`\`\`
+cd "$appdir"
+$devcmd
+\`\`\`
+
+Then open **http://localhost:3000** in your browser. It updates live as
+Claude makes changes.
+
+## Your branch
+
+You're on the branch \`$branch\` — your own copy of the code. The team's
+main version is untouched.
+
+## Sharing your changes
+
+When you're happy with it, just tell Claude:
+
+> "Share this with the team"
+
+Claude will save your work and open a pull request — a page on GitHub where
+the team can see exactly what you changed and comment on it. Claude will give
+you the link to send round.
+EOF
+    elif [[ "$kind" == "next" ]]; then
       cat <<EOF
 Open the Terminal app and run:
 
@@ -565,7 +713,7 @@ All fake data is in \`mock-data.js\`. Ask Claude to add more whenever the
 page needs it.
 EOF
     fi
-  } > "$dir/GETTING_STARTED.md"
+  } > "$out"
 }
 
 # ─── Next.js prototype ───────────────────────────────────────────────────────
@@ -750,6 +898,332 @@ EOF
   ok "HTML prototype created at $dir"
 }
 
+# ─── Starter app (real repo) ─────────────────────────────────────────────────
+# Set by scaffold_repo, read by print_next_steps.
+REPO_APP_DIR=""
+REPO_DEV_CMD=""
+REPO_BRANCH=""
+REPO_STARTED_FILE=""
+
+starter_field() { # starter_field <manifest line> <1-4>
+  printf '%s' "$1" | cut -d'|' -f"$2"
+}
+
+starter_lookup() { # starter_lookup <key> -> prints the manifest line; 1 if unknown
+  local entry
+  for entry in "${STARTER_REPOS[@]}"; do
+    if [[ "$(starter_field "$entry" 1)" == "$1" ]]; then
+      printf '%s' "$entry"
+      return 0
+    fi
+  done
+  return 1
+}
+
+starter_label() { # everything after the last '|' — the human-readable bit
+  printf '%s' "${1##*|}"
+}
+
+repo_tracks() { # repo_tracks <repo dir> <path relative to repo> — is it in git?
+  git -C "$1" ls-files --error-unmatch "$2" >/dev/null 2>&1
+}
+
+git_local_exclude() { # ignore files locally without touching the tracked .gitignore
+  local dir="$1"; shift
+  local ex="$dir/.git/info/exclude" p
+  mkdir -p "$(dirname "$ex")"
+  if ! grep -qxF '# added by pm-prototype.sh' "$ex" 2>/dev/null; then
+    printf '\n# added by pm-prototype.sh\n' >> "$ex"
+  fi
+  for p in "$@"; do
+    grep -qxF "$p" "$ex" 2>/dev/null || printf '%s\n' "$p" >> "$ex"
+  done
+}
+
+write_push_guard() { # refuse pushes to main/master from this clone
+  # These repos are on a plan without branch protection, so nothing on GitHub's
+  # side stops a push to main. Both guards live inside .git/, so they never show
+  # up in the PM's pull request.
+  local dir="$1" b
+  local hook="$dir/.git/hooks/pre-push"
+  mkdir -p "$(dirname "$hook")"
+  cat > "$hook" <<'HOOK'
+#!/usr/bin/env bash
+# Added by pm-prototype.sh — keeps the shared app safe.
+# Blocks pushes to main/master. Your own pm/ branch pushes normally.
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main|refs/heads/master)
+      printf '\n\033[0;31m✗\033[0m That would change the real app for everyone.\n\n'
+      printf 'Your work goes on your own branch instead. Ask Claude to\n'
+      printf '"share this with the team" and it opens a pull request, so an\n'
+      printf 'engineer can read the changes before anything reaches customers.\n\n'
+      exit 1
+      ;;
+  esac
+done
+exit 0
+HOOK
+  chmod 755 "$hook"
+  # Second layer: if the hook is ever removed, pushing while on main still fails.
+  for b in main master; do
+    if git -C "$dir" show-ref --verify --quiet "refs/heads/$b"; then
+      git -C "$dir" config "branch.$b.pushRemote" no-push-main || true
+    fi
+  done
+}
+
+find_app_dir() { # find_app_dir <repo dir> <subdir> -> prints app dir; 1 if no package.json
+  local dir="$1" subdir="$2"
+  if [[ -n "$subdir" ]]; then
+    printf '%s' "$dir/$subdir"
+    return 0
+  fi
+  if [[ -f "$dir/package.json" ]]; then
+    printf '%s' "$dir"
+    return 0
+  fi
+  # Exactly one top-level folder with a package.json? Use that. Otherwise give up.
+  local found="" d
+  for d in "$dir"/*/; do
+    [[ -f "${d}package.json" ]] || continue
+    [[ -z "$found" ]] || return 1
+    found="${d%/}"
+  done
+  [[ -n "$found" ]] || return 1
+  printf '%s' "$found"
+}
+
+pkg_manager_for() { # pick the lockfile's package manager, but only if it's installed
+  local appdir="$1"
+  if   [[ -f "$appdir/bun.lockb"      ]] && command -v bun  >/dev/null 2>&1; then printf 'bun'
+  elif [[ -f "$appdir/pnpm-lock.yaml" ]] && command -v pnpm >/dev/null 2>&1; then printf 'pnpm'
+  elif [[ -f "$appdir/yarn.lock"      ]] && command -v yarn >/dev/null 2>&1; then printf 'yarn'
+  else printf 'npm'
+  fi
+}
+
+restore_lockfiles() {
+  # An install can rewrite a tracked lockfile (e.g. when the repo's lockfile has
+  # drifted from its package.json). That's not the PM's change, so put it back —
+  # otherwise it turns up as noise in their pull request.
+  local dir="$1"
+  git -C "$dir" diff --name-only 2>/dev/null | while IFS= read -r f; do
+    case "${f##*/}" in
+      package-lock.json|npm-shrinkwrap.json|pnpm-lock.yaml|yarn.lock|bun.lockb)
+        git -C "$dir" checkout -- "$f" 2>/dev/null || true
+        ;;
+    esac
+  done
+}
+
+write_repo_settings() {
+  local dir="$1" pm="$2"
+  mkdir -p "$dir/.claude"
+  # settings.local.json, not settings.json — local overrides that Claude Code
+  # keeps out of git, so the PM's pull request stays clean.
+  cat > "$dir/.claude/settings.local.json" <<EOF
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash($pm run dev:*)",
+      "Bash($pm run build:*)",
+      "Bash($pm run lint:*)",
+      "Bash($pm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(open http://localhost:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr view:*)"
+    ]
+  }
+}
+EOF
+}
+
+write_repo_claude_md() {
+  local out="$1" repo="$2" branch="$3" subdir="$4" pm="$5" key="${6:-}"
+  {
+    printf '# Working with a PM on %s\n\n' "$repo"
+    cat <<EOF
+This is a **real, production codebase** — not a throwaway prototype. A product
+manager is making a change to it on the branch \`$branch\`.
+EOF
+    if [[ -n "$subdir" ]]; then
+      # the backticks are markdown, not a command substitution
+      # shellcheck disable=SC2016
+      printf '\nThe runnable app lives in `%s/`. Run commands from there.\n' "$subdir"
+    fi
+    cat <<EOF
+
+## The user is a PM, not an engineer
+
+- Explain what you did in plain language. Avoid jargon.
+- Never ask them to edit code themselves — make the change for them.
+- Never paste code at them to explain a change; describe the behaviour instead.
+- When something needs a decision, offer 2–3 concrete options with a recommendation.
+
+## Follow this codebase — do not invent your own way of doing things
+
+- **Read the neighbouring files before you change anything.** Match the
+  patterns, naming, file layout, and libraries already in use.
+- Do **not** introduce a new framework, state library, styling approach, or
+  component kit. Use what's already here.
+- Do **not** create a mock-data file or stub out fake data. This app has real
+  data flows — follow them.
+- Reuse existing components and helpers instead of writing new ones. Search
+  first, write second.
+- Keep changes as small and focused as the request. No drive-by refactors.
+
+## Verifying your work
+
+- Run \`$pm run dev\` and check the change actually works.
+- Before sharing, run \`$pm run build\` (and \`$pm run lint\` if it exists) and
+  fix anything you broke.
+
+## Sharing the work
+
+The PM is on branch \`$branch\`. Commit there as you go.
+
+When they say **"share this"**, **"send it to the team"**, or **"I'm done"**:
+
+1. \`git add\` the relevant files and commit with a clear, plain-language message.
+2. \`git push\` the branch.
+3. Run \`gh pr create\` with a title and a short description of *what changed and
+   why*, written for a human reviewer.
+4. Give the PM the pull request URL and tell them to send that link to the team.
+
+## Hard rules
+
+- Never commit to \`main\`. Never check out \`main\`. Stay on \`$branch\`.
+- **Pushing to \`main\` is blocked in this copy.** A git hook refuses it. If you
+  hit that block, do not retry it, do not try to work around it, and do not
+  remove the hook — it means the change belongs on \`$branch\` and should reach
+  \`main\` through a pull request. Switch to the commit-and-\`gh pr create\` path.
+- Never force-push. Never rewrite history.
+- Never commit secrets, API keys, \`.env\` files, or credentials.
+- Never delete or rewrite unrelated code to make something work.
+EOF
+    # Anything odd about this specific repo (see starter_notes above).
+    if [[ -n "$key" ]]; then starter_notes "$key"; fi
+  } > "$out"
+}
+
+scaffold_repo() {
+  local name="$1" dir="$2" entry="$3"
+  local key repo subdir label
+  key="$(starter_field "$entry" 1)"
+  repo="$(starter_field "$entry" 2)"
+  subdir="$(starter_field "$entry" 3)"
+  label="$(starter_label "$entry")"
+
+  ensure_gh
+
+  say "Getting a copy of $label..."
+  gh repo clone "$repo" "$dir" -- --quiet || die "Couldn't copy $repo.
+  You may not have access to it yet — ask an engineer to add you to the goodcodeworks org."
+  ok "Copied $repo"
+
+  # ── Your own branch, so main is never touched ──
+  local who slug branch
+  who="$(slugify "$(git -C "$dir" config user.name 2>/dev/null || true)")"
+  [[ -n "$who" ]] || who="$(slugify "${USER:-pm}")"
+  [[ -n "$who" ]] || who="pm"
+  slug="$(slugify "$name")"
+  branch="pm/${who}-${slug}"
+  if git -C "$dir" show-ref --verify --quiet "refs/heads/$branch"; then
+    git -C "$dir" checkout --quiet "$branch"
+  else
+    git -C "$dir" checkout --quiet -b "$branch"
+  fi
+  ok "You're on your own branch: $branch"
+
+  # Nothing on GitHub's side protects main on these repos, so guard it here.
+  write_push_guard "$dir"
+
+  # ── Where the runnable app actually is ──
+  local appdir="" pm="npm" can_install=1
+  if appdir="$(find_app_dir "$dir" "$subdir")" && [[ -f "$appdir/package.json" ]]; then
+    pm="$(pkg_manager_for "$appdir")"
+  else
+    appdir="$dir"
+    can_install=0
+  fi
+
+  if [[ "$can_install" == "1" ]]; then
+    node_ok || ensure_node
+    # Install straight from the lockfile so it isn't rewritten under the PM.
+    local -a install_cmd
+    case "$pm" in
+      npm)  if [[ -f "$appdir/package-lock.json" ]]; then install_cmd=(npm ci); else install_cmd=(npm install); fi ;;
+      pnpm) install_cmd=(pnpm install --frozen-lockfile) ;;
+      yarn) install_cmd=(yarn install --frozen-lockfile) ;;
+      bun)  install_cmd=(bun install --frozen-lockfile) ;;
+      *)    install_cmd=("$pm" install) ;;
+    esac
+    say "Installing the app's building blocks (takes a minute or two)..."
+    if (cd "$appdir" && "${install_cmd[@]}"); then
+      ok "App is ready to run"
+    elif (cd "$appdir" && "$pm" install); then
+      ok "App is ready to run"
+    else
+      warn "The install didn't finish cleanly. Try it yourself later: cd \"$appdir\" && $pm install"
+    fi
+    restore_lockfiles "$dir"
+  else
+    warn "Couldn't find an app to install in this repo — skipping the install step."
+    printf "  Ask Claude what this project needs to run.\n"
+  fi
+
+  # ── PM guidance, written so it never shows up in their pull request ──
+  say "Adding your Claude instructions..."
+
+  # The PM opens Claude inside the app folder, so the config belongs there —
+  # not at the top of the repo. Paths added to .git/info/exclude have to be
+  # relative to the repo root, hence the prefix.
+  local rel=""
+  [[ "$appdir" == "$dir" ]] || rel="${appdir#"$dir"/}/"
+
+  write_repo_settings "$appdir" "$pm"
+  local created=("${rel}.claude/settings.local.json")
+
+  local guide="$appdir/CLAUDE.md" guide_rel="${rel}CLAUDE.md"
+  if [[ -e "$guide" ]] || repo_tracks "$dir" "$guide_rel"; then
+    guide="$appdir/.claude/pm-guide.md"
+    guide_rel="${rel}.claude/pm-guide.md"
+    warn "This app already has its own CLAUDE.md — leaving it exactly as it is."
+    printf "  Your PM notes went to %s instead. The app's own\n" "$guide_rel"
+    printf "  CLAUDE.md takes precedence, which is what you want.\n"
+  fi
+  created+=("$guide_rel")
+  write_repo_claude_md "$guide" "$repo" "$branch" "$subdir" "$pm" "$key"
+
+  local started="$dir/GETTING_STARTED.md"
+  if repo_tracks "$dir" "GETTING_STARTED.md"; then
+    started="$dir/.claude/GETTING_STARTED.md"
+    created+=(".claude/GETTING_STARTED.md")
+  else
+    created+=("GETTING_STARTED.md")
+  fi
+  write_getting_started "$dir" "$name" "repo" "$appdir" "$pm run dev" "$branch" "$started"
+
+  # Ignore our additions locally only — the tracked .gitignore is untouched,
+  # so `git status` stays clean and the PM's pull request has no noise in it.
+  git_local_exclude "$dir" "${created[@]}"
+
+  REPO_APP_DIR="$appdir"
+  REPO_DEV_CMD="$pm run dev"
+  REPO_BRANCH="$branch"
+  REPO_STARTED_FILE="$started"
+  ok "$label is ready at $dir"
+}
+
 # ─── Create command ──────────────────────────────────────────────────────────
 
 slugify() {
@@ -758,25 +1232,83 @@ slugify() {
 
 print_next_steps() {
   local dir="$1" kind="$2"
+  local cddir="$dir"
+  [[ "$kind" == "repo" && -n "$REPO_APP_DIR" ]] && cddir="$REPO_APP_DIR"
   echo
   printf "%s─────────────────────────────────────────────%s\n" "$BOLD" "$NC"
-  printf "%sYour prototype is ready.%s Next steps:\n\n" "$BOLD" "$NC"
-  printf "  1. %scd \"%s\"%s\n" "$BOLD" "$dir" "$NC"
-  printf "  2. %sclaude%s   (or just %scc%s — sign in if it's your first time)\n" "$BOLD" "$NC" "$BOLD" "$NC"
-  printf "  3. Describe what you want to build\n"
-  if [[ "$kind" == "next" ]]; then
-    printf "\n  Preview: run %snpm run dev%s in a second tab, open http://localhost:3000\n" "$BOLD" "$NC"
+  if [[ "$kind" == "repo" ]]; then
+    printf "%sYour copy of the app is ready.%s Next steps:\n\n" "$BOLD" "$NC"
   else
-    printf "\n  Preview: %sopen \"%s/index.html\"%s\n" "$BOLD" "$dir" "$NC"
+    printf "%sYour prototype is ready.%s Next steps:\n\n" "$BOLD" "$NC"
   fi
-  printf "\n  Full instructions are in %s%s/GETTING_STARTED.md%s\n" "$BOLD" "$dir" "$NC"
+  printf "  1. %scd \"%s\"%s\n" "$BOLD" "$cddir" "$NC"
+  printf "  2. %sclaude%s   (or just %scc%s — sign in if it's your first time)\n" "$BOLD" "$NC" "$BOLD" "$NC"
+  if [[ "$kind" == "repo" ]]; then
+    printf "  3. Describe the change you want\n"
+    printf "\n  Preview: run %s%s%s in a second tab, open http://localhost:3000\n" "$BOLD" "$REPO_DEV_CMD" "$NC"
+    printf "  You're on branch %s%s%s — main is untouched.\n" "$BOLD" "$REPO_BRANCH" "$NC"
+    printf "  When you're done, tell Claude %s\"share this with the team\"%s and it\n" "$BOLD" "$NC"
+    printf "  will open a pull request and give you the link.\n"
+  else
+    printf "  3. Describe what you want to build\n"
+    if [[ "$kind" == "next" ]]; then
+      printf "\n  Preview: run %snpm run dev%s in a second tab, open http://localhost:3000\n" "$BOLD" "$NC"
+    else
+      printf "\n  Preview: %sopen \"%s/index.html\"%s\n" "$BOLD" "$dir" "$NC"
+    fi
+  fi
+  local guide="$dir/GETTING_STARTED.md"
+  [[ "$kind" == "repo" && -n "$REPO_STARTED_FILE" ]] && guide="$REPO_STARTED_FILE"
+  printf "\n  Full instructions are in %s%s%s\n" "$BOLD" "$guide" "$NC"
   printf "%s─────────────────────────────────────────────%s\n" "$BOLD" "$NC"
 }
 
+starter_keys() { # space-separated list of manifest keys, for help text
+  local e out=""
+  for e in "${STARTER_REPOS[@]}"; do out+="$(starter_field "$e" 1) "; done
+  printf '%s' "${out% }"
+}
+
+normalize_repo_ref() { # owner/repo or a GitHub URL -> owner/repo (engineer escape hatch)
+  local ref="$1"
+  ref="${ref%.git}"
+  ref="${ref#git@github.com:}"
+  ref="${ref#https://github.com/}"
+  ref="${ref#http://github.com/}"
+  ref="${ref#github.com/}"
+  ref="$(printf '%s' "$ref" | cut -d'/' -f1,2)"
+  [[ "$ref" == */* && "$ref" != */ ]] || return 1
+  printf '%s' "$ref"
+}
+
 cmd_new() {
-  local raw_name="${1:-}" kind="next"
-  [[ -n "$raw_name" ]] || die "Usage: ./pm-prototype.sh new <name> [--html]"
-  [[ "${2:-}" == "--html" ]] && kind="html"
+  local raw_name="${1:-}" kind="next" repo_key="" entry=""
+  [[ -n "$raw_name" ]] || die "Usage: ./pm-prototype.sh new <name> [--html | --repo <app>]"
+  shift
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --html)   kind="html" ;;
+      --repo)   kind="repo"; repo_key="${2:-}"; shift || : ;;
+      --repo=*) kind="repo"; repo_key="${1#--repo=}" ;;
+      *) die "Unknown option: $1 (try: --html, or --repo <app>)" ;;
+    esac
+    # a bare trailing --repo leaves nothing to shift; don't let set -e kill us
+    shift || break
+  done
+
+  if [[ "$kind" == "repo" ]]; then
+    [[ -n "$repo_key" ]] || die "Which app do you want to start from?
+  Try: ./pm-prototype.sh new $raw_name --repo $(starter_field "${STARTER_REPOS[0]}" 1)
+  Available: $(starter_keys)"
+    if ! entry="$(starter_lookup "$repo_key")"; then
+      # Not in the curated list — fall back to treating it as owner/repo or a URL.
+      local ref=""
+      ref="$(normalize_repo_ref "$repo_key")" || die "Don't know the app '$repo_key'.
+  Available: $(starter_keys)"
+      entry="$repo_key|$ref||$ref"
+    fi
+  fi
 
   local name
   name="$(slugify "$raw_name")"
@@ -787,12 +1319,18 @@ cmd_new() {
   local dir="$PROTOTYPE_HOME/$name"
   [[ ! -e "$dir" ]] || die "$dir already exists. Pick a different name."
 
-  if [[ "$kind" == "next" ]]; then
-    node_ok || die "Node.js 20+ is required. Run: ./pm-prototype.sh setup"
-    scaffold_next "$name" "$dir"
-  else
-    scaffold_html "$name" "$dir"
-  fi
+  case "$kind" in
+    next)
+      node_ok || die "Node.js 20+ is required. Run: ./pm-prototype.sh setup"
+      scaffold_next "$name" "$dir"
+      ;;
+    repo)
+      scaffold_repo "$name" "$dir" "$entry"
+      ;;
+    *)
+      scaffold_html "$name" "$dir"
+      ;;
+  esac
 
   print_next_steps "$dir" "$kind"
 }
@@ -809,8 +1347,9 @@ cmd_interactive() {
   if ! have_tty; then
     warn "No interactive terminal detected — setup is done, but I can't ask questions."
     printf "To create a project, run:\n"
-    printf "  ./pm-prototype.sh new <name>          # Next.js prototype\n"
-    printf "  ./pm-prototype.sh new <name> --html   # plain-HTML prototype\n"
+    printf "  ./pm-prototype.sh new <name>                # Next.js prototype\n"
+    printf "  ./pm-prototype.sh new <name> --html         # plain-HTML prototype\n"
+    printf "  ./pm-prototype.sh new <name> --repo <app>   # start from one of our apps\n"
     return 0
   fi
 
@@ -836,20 +1375,43 @@ cmd_interactive() {
   done
 
   local choice=""
-  choice="$(ask $'\nWhat kind of prototype?\n  1) Next.js — interactive web app: dashboards, flows, multi-page (recommended)\n  2) Plain HTML — single page, opens instantly, no server\n> ')" || { ask_aborted; return 0; }
+  choice="$(ask $'\nWhat do you want to build?\n  1) Next.js — interactive web app: dashboards, flows, multi-page (recommended)\n  2) Plain HTML — single page, opens instantly, no server\n  3) Start from one of our apps — change a real goodcodeworks app\n> ')" || { ask_aborted; return 0; }
+
+  local repo_key=""
+  if [[ "$choice" == "3" ]]; then
+    local menu="" i=1 e
+    for e in "${STARTER_REPOS[@]}"; do
+      menu+="  $i) $(starter_label "$e")"$'\n'
+      i=$((i + 1))
+    done
+    local pick=""
+    while :; do
+      pick="$(ask $'\nWhich app do you want to change?\n'"$menu"'> ')" || { ask_aborted; return 0; }
+      [[ -n "$pick" ]] || pick="1"
+      if [[ "$pick" =~ ^[0-9]+$ ]] && (( pick >= 1 && pick <= ${#STARTER_REPOS[@]} )); then
+        repo_key="$(starter_field "${STARTER_REPOS[$((pick - 1))]}" 1)"
+        break
+      fi
+      warn "Pick a number from the list above."
+    done
+  fi
 
   echo
-  if [[ "$choice" == "2" ]]; then
-    cmd_new "$raw_name" "--html"
-  else
-    cmd_new "$raw_name"
-  fi
+  case "$choice" in
+    2) cmd_new "$raw_name" "--html" ;;
+    3) cmd_new "$raw_name" "--repo" "$repo_key" ;;
+    *) cmd_new "$raw_name" ;;
+  esac
+
+  # For a real app, Claude should open inside the runnable app folder.
+  local opendir="$dir"
+  [[ "$choice" == "3" && -n "$REPO_APP_DIR" ]] && opendir="$REPO_APP_DIR"
 
   local ans=""
   ans="$(ask $'\nStart building with Claude right now? [Y/n] ')" || return 0
   case "$(printf '%s' "${ans:-y}" | tr '[:upper:]' '[:lower:]')" in
-    n*) printf "Okay — when you're ready: cd \"%s\" && claude\n" "$dir" ;;
-    *)  launch_claude "$dir" ;;
+    n*) printf "Okay — when you're ready: cd \"%s\" && claude\n" "$opendir" ;;
+    *)  launch_claude "$opendir" ;;
   esac
 }
 
@@ -860,16 +1422,26 @@ usage() {
 pm-prototype.sh — build functional designs with Claude Code
 
 Usage:
-  ./pm-prototype.sh                     Interactive: check tools, then create a project
-  ./pm-prototype.sh setup               Just install/verify Homebrew, Node, Claude Code
-  ./pm-prototype.sh new <name>          Create a Next.js prototype
-  ./pm-prototype.sh new <name> --html   Create a plain-HTML prototype
+  ./pm-prototype.sh                          Interactive: check tools, then create a project
+  ./pm-prototype.sh setup                    Just install/verify Homebrew, Node, Claude Code
+  ./pm-prototype.sh new <name>               Create a Next.js prototype
+  ./pm-prototype.sh new <name> --html        Create a plain-HTML prototype
+  ./pm-prototype.sh new <name> --repo <app>  Copy one of our apps onto your own branch
 
 Run it straight from the web (safe to re-run; args pass through after --):
   curl -fsSL goodcode.works/pm | bash
   curl -fsSL goodcode.works/pm | bash -s -- new my-idea
 
 Projects are created in ~/Prototypes (override with PROTOTYPE_HOME=/path).
+EOF
+  printf '\nStarter apps for --repo: %s\n' "$(starter_keys)"
+  cat <<'EOF'
+
+For engineers: --repo also accepts any owner/repo or GitHub URL, e.g.
+  ./pm-prototype.sh new spike --repo goodcodeworks/some-app
+  ./pm-prototype.sh new spike --repo https://github.com/goodcodeworks/some-app
+It clones with `gh`, makes a pm/<user>-<name> branch, installs deps with the
+lockfile's package manager, and writes local-only Claude config (git-clean).
 EOF
 }
 

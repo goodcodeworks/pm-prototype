@@ -236,8 +236,9 @@ h1 em{font-style:italic;color:var(--accent);font-variation-settings:"opsz" 144,"
 .spot .shint{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-soft);white-space:nowrap}
 
 /* choice cards */
-.choices{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:22px;max-width:620px}
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:22px 14px;margin-top:22px;max-width:620px}
 @media (max-width:640px){.choices{grid-template-columns:1fr}}
+.choice:nth-child(3){grid-column:1/-1}
 .choice{
   border:1.5px solid rgba(34,30,25,.18);border-radius:14px;padding:18px;
   background:rgba(255,255,255,.45);position:relative;
@@ -321,7 +322,7 @@ footer .mark{font-family:var(--serif);font-style:italic;font-size:15px;color:var
 <header class="hero wrap">
   <span class="kicker">PM Prototype Studio · First-time guide</span>
   <h1>Describe it.<br>Watch it <em>build.</em></h1>
-  <p class="dek">Ten minutes from a blank Mac to a working prototype — <strong>no coding, no setup wizardry.</strong> You paste one line, answer two questions, and then you just talk.</p>
+  <p class="dek">Ten minutes from a blank Mac to a working prototype — <strong>no coding, no setup wizardry.</strong> You paste one line, answer a few questions, and then you just talk.</p>
   <div class="cmdcard">
     <code><span class="p">$</span> curl -fsSL goodcode.works/pm | bash</code>
     <button class="copybtn" data-copy="curl -fsSL goodcode.works/pm | bash">Copy</button>
@@ -344,7 +345,7 @@ footer .mark{font-family:var(--serif);font-style:italic;font-size:15px;color:var
     </div>
     <div class="phaserail" id="rail">
       <div class="phase" data-p="0"><span class="pn">ACT I</span>The check-up</div>
-      <div class="phase" data-p="1"><span class="pn">ACT II</span>Two questions</div>
+      <div class="phase" data-p="1"><span class="pn">ACT II</span>A few questions</div>
       <div class="phase" data-p="2"><span class="pn">ACT III</span>The build</div>
       <div class="phase" data-p="3"><span class="pn">ACT IV</span>Lift-off</div>
     </div>
@@ -385,7 +386,7 @@ footer .mark{font-family:var(--serif);font-style:italic;font-size:15px;color:var
   <li class="chapter" data-reveal>
     <div class="num" aria-hidden="true">03</div>
     <div>
-      <h2>Answer two questions</h2>
+      <h2>Answer a few questions</h2>
       <p>It asks what to call your prototype — pick anything, like <code class="inline">checkout-redesign</code> — and what kind to make:</p>
       <div class="choices">
         <div class="choice reco">
@@ -397,8 +398,12 @@ footer .mark{font-family:var(--serif);font-style:italic;font-size:15px;color:var
           <h3>Plain HTML <span class="kn">— press 2</span></h3>
           <p>One page that opens instantly in your browser. Great for a quick landing page or a static mockup.</p>
         </div>
+        <div class="choice">
+          <h3>Start from one of our apps <span class="kn">— press 3</span></h3>
+          <p>Begin with a real Good Code app instead of a blank page — like our Salon POS. Change what you like, then share it back so the team can see it. This one asks you to sign in to GitHub the first time.</p>
+        </div>
       </div>
-      <p style="margin-top:18px">Every project comes pre-loaded with <strong>realistic fake data</strong> — users, orders, revenue, KPIs — so your first screen looks real from minute one.</p>
+      <p style="margin-top:18px">Options 1 and 2 come pre-loaded with <strong>realistic fake data</strong> — users, orders, revenue, KPIs — so your first screen looks real from minute one. Option 3 doesn't need any: you get the real app's own screens and data, already built.</p>
     </div>
   </li>
 
@@ -439,6 +444,42 @@ footer .mark{font-family:var(--serif);font-style:italic;font-size:15px;color:var
 <span class="c-grn">✓</span> Ready on <span class="c-cyn">http://localhost:3000</span></pre>
       </div>
       <p style="margin-top:18px">(For a plain-HTML project it's even simpler — double-click <code class="inline">index.html</code> and refresh after changes.)</p>
+      <p style="margin-top:12px">(Started from one of our apps? Same two lines — but run them from the app's own folder <em>inside</em> your project, not the top of it. <code class="inline">GETTING_STARTED.md</code> has the exact path.)</p>
+    </div>
+  </li>
+
+  <li class="chapter" data-reveal>
+    <div class="num" aria-hidden="true">07</div>
+    <div>
+      <h2>If you started from one of our apps</h2>
+      <p>Option 3 works the same way — you talk, Claude builds — with two extra beats. GitHub asks who you are the first time. And when you're done, your work goes back to the team as a <strong>pull request</strong>: a page where an engineer reads your changes before anything ships. Here's the whole shape of it:</p>
+      <div class="miniterm" aria-hidden="true">
+        <div class="termbar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="termtitle">Terminal — option 3</span></div>
+        <pre><span class="c-cyn">▶</span> Sign in to GitHub once <span class="c-dim">(opens your browser)</span>
+<span class="c-grn">✓</span> Signed in to GitHub
+
+What do you want to build?
+  <span class="c-amb">3)</span> Start from one of our apps
+<span class="c-acc">&gt;</span> 3
+
+Which app do you want to change?
+  <span class="c-amb">1)</span> Salon POS — booking, checkout, stylists
+<span class="c-acc">&gt;</span> 1
+
+<span class="c-grn">✓</span> Copied goodcodeworks/salon-pos
+<span class="c-grn">✓</span> Your own branch: pm/alex-salon-refresh
+
+<span class="c-acc">$</span> cd ~/Prototypes/salon-refresh/salon-software
+<span class="c-acc">$</span> cc
+<span class="c-acc">$</span> npm run dev  <span class="c-dim">(in a second tab)</span>
+<span class="c-grn">✓</span> Ready on <span class="c-cyn">http://localhost:3000</span>
+
+<span class="c-acc">❯</span> share this with the team
+<span class="c-grn">✓</span> Pull request opened — send the team this link:
+  <span class="c-cyn">github.com/goodcodeworks/salon-pos/pull/42</span></pre>
+      </div>
+      <p style="margin-top:18px">The branch is yours and it's named after you. Everything you change stays on it, so the version customers use never moves while you experiment.</p>
+      <div class="note"><b>Sharing is one sentence.</b> When you like what you've got, tell Claude <strong>"share this with the team"</strong>. It saves your work, opens the pull request, and hands you a link to send round.</div>
     </div>
   </li>
 
@@ -449,10 +490,11 @@ footer .mark{font-family:var(--serif);font-style:italic;font-size:15px;color:var
   <details>
     <summary>Can I break something on my Mac?</summary>
     <p>Realistically, no. Everything lives in one folder — <code>~/Prototypes</code> — and prototypes are throwaway by design: no databases, no accounts, nothing deployed. Worst case, you delete the folder and run the line again.</p>
+    <p>One honest exception: if you start from one of our apps (option 3), you do sign in to GitHub, and your changes also live on a branch there. Still safe — it's your branch and nobody else's — but that one isn't purely throwaway.</p>
   </details>
   <details>
     <summary>I closed Terminal. How do I get back to my prototype?</summary>
-    <p>Run the same one-liner and type the same project name — it offers to reopen it. Or in Terminal: <code>cd ~/Prototypes/your-project</code> then <code>cc</code>. Every project also has a <code>GETTING_STARTED.md</code> file with these exact steps.</p>
+    <p>Run the same one-liner and type the same project name — it offers to reopen it. Or in Terminal: <code>cd ~/Prototypes/your-project</code> then <code>cc</code>. If you started from one of our apps, the part that actually runs is a folder inside that one, so the path is a little longer. Every project has a <code>GETTING_STARTED.md</code> file with the exact steps and the exact path.</p>
   </details>
   <details>
     <summary>Claude did something I didn't want.</summary>
@@ -461,6 +503,18 @@ footer .mark{font-family:var(--serif);font-style:italic;font-size:15px;color:var
   <details>
     <summary>Where does the fake data come from?</summary>
     <p>Every project ships with a mock-data file (users, orders, KPIs, revenue). Need something specific — menu items, reservations, whatever your idea needs? Ask Claude: "add mock data for X" and build with that.</p>
+  </details>
+  <details>
+    <summary>Will I mess up the real app?</summary>
+    <p>No. You work on your own branch — your own copy of the code, named after you. The team's <code>main</code> is never touched, and nothing reaches customers until an engineer reads your pull request and decides to merge it. If nobody merges it, nothing happens.</p>
+  </details>
+  <details>
+    <summary>Do I need GitHub access?</summary>
+    <p>Only for option 3, and only once. Setup walks you through it — pick <strong>GitHub.com</strong>, <strong>HTTPS</strong>, and <strong>login with a web browser</strong>, then paste the code it shows you. If you get an error about not having access, you're just not in the org yet: ask the team to add you to <code>goodcodeworks</code>, then run the line again.</p>
+  </details>
+  <details>
+    <summary>What happens to the branch I made?</summary>
+    <p>It sits there quietly until you share it. When you're happy with your changes, tell Claude <strong>"share this with the team"</strong> — it saves your work, pushes the branch, opens a pull request, and gives you a link. Send that link to the team and you're done.</p>
   </details>
   <details>
     <summary>Something's stuck or looks broken.</summary>
@@ -522,9 +576,10 @@ const SCENE = [
   {t:'out',  p:1, html:'What do you want to call your prototype? <span class="c-dim">(e.g. checkout-redesign)</span>'},
   {t:'cmd',  p:1, prompt:'> ', text:'lunch-rush-dashboard'},
   {t:'gap',  p:1},
-  {t:'out',  p:1, html:'What kind of prototype?'},
+  {t:'out',  p:1, html:'What do you want to build?'},
   {t:'out',  p:1, html:'  <span class="c-amb">1)</span> Next.js — interactive web app <span class="c-dim">(recommended)</span>'},
   {t:'out',  p:1, html:'  <span class="c-amb">2)</span> Plain HTML — single page, no server'},
+  {t:'out',  p:1, html:'  <span class="c-amb">3)</span> Start from one of our apps'},
   {t:'cmd',  p:1, prompt:'> ', text:'1'},
   {t:'wait', p:1, ms:500},
   {t:'gap',  p:2},
