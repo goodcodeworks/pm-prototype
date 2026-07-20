@@ -250,6 +250,15 @@ ensure_gh() {
   fi
 
   echo
+  say "Don't have a GitHub account yet? You'll need one first — it's free and"
+  printf "  takes a minute. GitHub has to be signed up for in a browser by you (it\n"
+  printf "  can't be automated), so I'll open the page now if you need it.\n"
+  printf "    • Create one at %shttps://github.com/signup%s\n" "$BOLD" "$NC"
+  printf "    • Already have an account? Skip that and sign in below.\n"
+  if command -v open >/dev/null 2>&1; then
+    open "https://github.com/signup" >/dev/null 2>&1 || true
+  fi
+  echo
   say "You need to sign in to GitHub once so we can copy the app for you."
   printf "  GitHub will ask a few short questions in this window. The safe answers:\n"
   printf "    • Where do you use GitHub? → %sGitHub.com%s\n" "$BOLD" "$NC"
