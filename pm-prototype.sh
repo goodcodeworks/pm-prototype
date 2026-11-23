@@ -39,6 +39,10 @@ PROTOTYPE_HOME="${PROTOTYPE_HOME:-$HOME/Prototypes}"
 # needs to change.
 
 STARTER_REPOS=(
+  "pos|goodcodeworks/pos||POS — the restaurant point-of-sale app (runs on Android tablets)"
+  "kds|goodcodeworks/kds||KDS — the kitchen display screens (runs on Android tablets)"
+  "dashboard|goodcodeworks/dashboard_||Dashboard — the restaurant back-office dashboard (runs in a browser)"
+  "online-ordering|goodcodeworks/online-ordering||Online Ordering — the customer-facing ordering site (runs in a browser)"
   "salon-pos|goodcodeworks/salon-pos|salon-software|Salon POS — booking calendar, clients, and stylist management"
 )
 
@@ -646,7 +650,7 @@ write_getting_started() {
   # For kind=repo the extra args are: <app dir> <dev command> <branch> [outfile]
   local dir="$1" name="$2" kind="$3" appdir="${4:-}" devcmd="${5:-}" branch="${6:-}"
   local out="${7:-$dir/GETTING_STARTED.md}"
-  local preview_url="${8:-}" needs_env="${9:-0}" base="${10:-main}"
+  local preview_url="${8:-}" needs_env="${9:-0}" base="${10:-main}" native="${11:-0}"
   {
     printf '# Getting started with %s\n\n' "$name"
     if [[ "$kind" == "repo" ]]; then
@@ -674,6 +678,19 @@ questions is a perfectly good use of this. For example:
 - "Change <something> on the <screen name> screen"
 
 ## Seeing the app
+EOF
+      if [[ "$native" == "1" ]]; then
+        cat <<EOF
+
+This one is a tablet app, so it doesn't open in a browser on your Mac. To see
+it running you need a test tablet (or an emulator) that an engineer has set up
+for it — ask them for one.
+
+You don't need that to ask Claude how the app works, to check whether
+something is a bug, or to make a change and share it for review.
+EOF
+      else
+        cat <<EOF
 
 The easiest way: ask Claude
 
@@ -682,7 +699,8 @@ The easiest way: ask Claude
 Claude starts it and tells you the address to open in your browser. It
 updates live as Claude makes changes.
 EOF
-      if [[ -n "$devcmd" ]]; then
+      fi
+      if [[ "$native" != "1" && -n "$devcmd" ]]; then
         cat <<EOF
 
 Prefer to start it yourself? In a second Terminal tab:
@@ -695,7 +713,7 @@ $devcmd
 Then open ${preview_url:+**$preview_url** — or, if that is blank, }the address it prints.
 EOF
       fi
-      if [[ "$needs_env" == "1" ]]; then
+      if [[ "$native" != "1" && "$needs_env" == "1" ]]; then
         cat <<EOF
 
 **One thing first:** this app needs a settings file called \`.env\`, which
@@ -980,6 +998,7 @@ EOF
 REPO_APP_DIR=""
 REPO_DEV_CMD=""
 REPO_PREVIEW_URL=""
+REPO_NATIVE="0"
 REPO_BASE=""
 REPO_BRANCH=""
 REPO_STARTED_FILE=""
@@ -1130,6 +1149,16 @@ dev_script_for() { # the package.json script that starts the app: dev, else web,
 
 app_is_next() { grep -q '"next"[[:space:]]*:' "$1/package.json" 2>/dev/null; }
 
+app_is_native_only() { # a tablet/phone app with no web build: React Native without react-native-web
+  # These can't be opened in a browser on a Mac, so nothing should promise that.
+  node -e '
+    const p = require(process.argv[1]);
+    const d = Object.assign({}, p.devDependencies, p.dependencies);
+    const native = d["react-native"] || d["expo"];
+    process.exit(native && !d["react-native-web"] && !d["next"] ? 0 : 1);
+  ' "$1/package.json" 2>/dev/null
+}
+
 app_needs_env() { # has an example settings file but no real one yet
   local appdir="$1" f
   [[ -f "$appdir/.env" || -f "$appdir/.env.local" ]] && return 1
@@ -1207,8 +1236,10 @@ EOF
 write_repo_claude_md() {
   # <out> <repo> <branch> <subdir> <pm> <key> <team branch> <start command>
   # <1 if the app has its own CLAUDE.md/AGENTS.md> <1 if it needs a .env> <node note>
+  # <1 if it is a tablet/phone app with no web build>
   local out="$1" repo="$2" branch="$3" subdir="$4" pm="$5" key="${6:-}"
   local base="${7:-main}" devcmd="${8:-}" has_own="${9:-0}" needs_env="${10:-0}" node_note="${11:-}"
+  local native="${12:-0}"
   mkdir -p "$(dirname "$out")"
   {
     printf '# Working with a non-engineer on %s\n\n' "$repo"
@@ -1270,7 +1301,18 @@ work", "why would a customer see that", "is this a bug".
 ## Running the app and checking your work
 
 EOF
-    if [[ -n "$devcmd" ]]; then
+    if [[ "$native" == "1" ]]; then
+      cat <<EOF
+- **This is a tablet/phone app, not a website. It does not open in a browser
+  on this Mac.** Running it needs a tablet, phone, or emulator with a
+  development build, which an engineer sets up. If they ask to see it running,
+  tell them that plainly and suggest they ask an engineer for a test device —
+  do not try start commands until one seems to work, and do not install
+  emulators or add packages to force a browser version.
+- Reading the code, answering questions, and making changes all work without
+  a device.
+EOF
+    elif [[ -n "$devcmd" ]]; then
       cat <<EOF
 - When they want to see the app, start it yourself with \`$devcmd\` (in the
   background) and give them the address it prints to open in their browser.
@@ -1281,11 +1323,20 @@ EOF
   \`package.json\`, start it yourself, and give them the address to open.
 EOF
     fi
-    cat <<EOF
+    if [[ "$native" == "1" ]]; then
+      cat <<EOF
+- After a change, you cannot look at the screen yourself. Run the app's own
+  checks (lint, type check, tests — whichever its \`package.json\` has), fix
+  anything you broke, and say clearly that the change was checked that way and
+  has **not** been seen on a device. Put the same sentence in the pull request.
+EOF
+    else
+      cat <<EOF
 - After a change, check it actually works before you say it is done.
 - Before sharing, run the app's own checks (lint, type check, tests — whichever
   its \`package.json\` has) and fix anything you broke.
 EOF
+    fi
     if [[ "$needs_env" == "1" ]]; then
       cat <<EOF
 - **This copy has no \`.env\` file yet**, so the app may not start or may not
@@ -1328,6 +1379,11 @@ When they say **"share this"**, **"send it to the team"**, or **"I'm done"**:
 - Never force-push. Never rewrite history.
 - Never commit secrets, API keys, \`.env\` files, or credentials.
 - Never delete or rewrite unrelated code to make something work.
+- Never run anything that changes a live system or ships a build: database
+  migrations, deploys, store or over-the-air releases (for example
+  \`supabase db push\`, \`supabase functions deploy\`, \`eas build\`,
+  \`eas submit\`, \`eas update\`, or a \`deploy\`/\`release\` script). If the
+  work needs one of those, say so and leave it for an engineer.
 EOF
     # Anything odd about this specific repo (see starter_notes above).
     if [[ -n "$key" ]]; then starter_notes "$key"; fi
@@ -1341,6 +1397,7 @@ scaffold_repo() {
   repo="$(starter_field "$entry" 2)"
   subdir="$(starter_field "$entry" 3)"
   label="$(starter_label "$entry")"
+  label="${label%% — *}"   # just the name ("Dashboard"), without the description
 
   ensure_gh
   ensure_git_identity
@@ -1371,12 +1428,15 @@ scaffold_repo() {
   write_push_guard "$dir"
 
   # ── Where the runnable app actually is ──
-  local appdir="" pm="npm" can_install=1 devscript="" devcmd=""
+  local appdir="" pm="npm" can_install=1 devscript="" devcmd="" native=0
   if appdir="$(find_app_dir "$dir" "$subdir")" && [[ -f "$appdir/package.json" ]]; then
     # Node first: installing the app's package manager and reading its scripts both need it.
     node_ok || ensure_node
     pm="$(pkg_manager_for "$appdir")"
     devscript="$(dev_script_for "$appdir")"
+    # A tablet app's start script only serves a device — don't offer it as
+    # "open this address in your browser".
+    if app_is_native_only "$appdir"; then native=1; devscript=""; fi
     [[ -z "$devscript" ]] || devcmd="$pm run $devscript"
   else
     appdir="$dir"
@@ -1444,7 +1504,7 @@ scaffold_repo() {
     node_note="$(node_pin_note "$dir" "$appdir")"
   fi
   write_repo_claude_md "$guide" "$repo" "$branch" "$subdir" "$pm" "$key" \
-    "$base" "$devcmd" "$has_own" "$needs_env" "$node_note"
+    "$base" "$devcmd" "$has_own" "$needs_env" "$node_note" "$native"
 
   local preview_url=""
   if [[ "$can_install" == "1" ]] && app_is_next "$appdir"; then preview_url="http://localhost:3000"; fi
@@ -1457,13 +1517,17 @@ scaffold_repo() {
     created+=("GETTING_STARTED.md")
   fi
   write_getting_started "$dir" "$name" "repo" "$appdir" "$devcmd" "$branch" "$started" \
-    "$preview_url" "$needs_env" "$base"
+    "$preview_url" "$needs_env" "$base" "$native"
 
   # Ignore our additions locally only — the tracked .gitignore is untouched,
   # so `git status` stays clean and their pull request has no noise in it.
   git_local_exclude "$dir" "${created[@]}"
 
-  if [[ "$needs_env" == "1" ]]; then
+  if [[ "$native" == "1" ]]; then
+    warn "This is a tablet app — it won't open in a browser on your Mac."
+    printf "  You can explore it, ask Claude questions, and make changes right away.\n"
+    printf "  To see it running, ask an engineer for a test tablet set up for it.\n"
+  elif [[ "$needs_env" == "1" ]]; then
     warn "This app needs a settings file (.env) that only an engineer can give you."
     printf "  You can explore it and ask Claude questions right away. To actually run\n"
     printf "  it on your Mac, ask an engineer for the .env file for %s.\n" "$label"
@@ -1475,6 +1539,7 @@ scaffold_repo() {
   REPO_APP_DIR="$appdir"
   REPO_DEV_CMD="$devcmd"
   REPO_PREVIEW_URL="$preview_url"
+  REPO_NATIVE="$native"
   REPO_BASE="$base"
   REPO_BRANCH="$branch"
   REPO_STARTED_FILE="$started"
@@ -1502,7 +1567,12 @@ print_next_steps() {
   printf "  2. %sclaude%s   (or just %scc%s — sign in if it's your first time)\n" "$BOLD" "$NC" "$BOLD" "$NC"
   if [[ "$kind" == "repo" ]]; then
     printf "  3. Ask a question about the app, or describe the change you want\n"
-    printf "\n  To see it running, ask Claude %s\"start the app so I can see it\"%s.\n" "$BOLD" "$NC"
+    if [[ "$REPO_NATIVE" == "1" ]]; then
+      printf "\n  This is a tablet app: it won't open in a browser on your Mac. To see it\n"
+      printf "  running, ask an engineer for a test tablet. Everything else works now.\n"
+    else
+      printf "\n  To see it running, ask Claude %s\"start the app so I can see it\"%s.\n" "$BOLD" "$NC"
+    fi
     printf "  You're on branch %s%s%s — the team's version (%s) is untouched.\n" "$BOLD" "$REPO_BRANCH" "$NC" "${REPO_BASE:-main}"
     printf "  If you change something, tell Claude %s\"share this with the team\"%s and it\n" "$BOLD" "$NC"
     printf "  will open a pull request and give you the link.\n"

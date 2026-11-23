@@ -41,7 +41,19 @@ Pick **Start from one of our apps**. You get your own copy of the real app and C
 
 Claude can only see the code. It can't see the live system or a customer's account, and it will tell you so rather than guess.
 
-Some apps need a private settings file (`.env`) before they will run on your Mac. Setup tells you if yours does; ask an engineer for it. Asking questions works without it.
+The apps on the menu:
+
+| App | What it is | Opens on your Mac? |
+| --- | --- | --- |
+| **POS** | The restaurant point-of-sale app | No — it's an Android tablet app |
+| **KDS** | The kitchen display screens | No — it's an Android tablet app |
+| **Dashboard** | The restaurant back-office dashboard | Yes, in your browser |
+| **Online Ordering** | The customer-facing ordering site | Yes, in your browser |
+| **Salon POS** | Booking calendar, clients, and stylist management | Yes, in your browser |
+
+For POS and KDS you can still ask Claude anything about how they work and make changes for review; to see them running, ask an engineer for a test tablet.
+
+The browser apps need a private settings file (`.env`) before they will run on your Mac. Setup tells you if yours does; ask an engineer for it. Asking questions works without it.
 
 ## Changing a real app
 
@@ -59,7 +71,7 @@ Your setup files are kept out of the pull request automatically, so reviewers on
 
 - **Next.js**: in a second Terminal tab, run `npm run dev` inside the project folder, then open [http://localhost:3000](http://localhost:3000). It updates live as Claude works.
 - **HTML**: double-click `index.html` in Finder and refresh after changes.
-- **One of our apps**: ask Claude *"start the app so I can see it"* — it starts it and gives you the address to open. Your `GETTING_STARTED.md` also has the command if you'd rather run it yourself.
+- **One of our apps**: ask Claude *"start the app so I can see it"* — it starts it and gives you the address to open (POS and KDS are tablet apps and don't open on a Mac). Your `GETTING_STARTED.md` also has the command if you'd rather run it yourself.
 
 Every project also contains a `GETTING_STARTED.md` with these instructions and example prompts to try.
 
@@ -92,4 +104,5 @@ Apps that need a `.env` file to run also need an engineer to hand that over.
   Run `./pm-prototype.sh --help` to see the available apps.
 - Prototypes are throwaway by design: all data is mocked in `lib/mock-data.ts` (or `mock-data.js`), and the bundled `CLAUDE.md` instructs Claude to keep it that way — no databases, no auth, nothing to deploy or break.
 - Starting from a real app is different: Claude is told to follow that codebase's existing patterns rather than mock anything out. Setup files (`CLAUDE.md`, `GETTING_STARTED.md`, `.claude/settings.local.json`) are ignored locally via `.git/info/exclude`, so `git status` stays clean and the pull request shows only your change. If the app already has its own `CLAUDE.md` or `AGENTS.md`, it's left untouched and the notes go to `.claude/rules/pm-guide.md` instead, which Claude Code reads alongside it.
-- On a real app the script also: installs the lockfile's package manager (yarn, pnpm, or bun) if the Mac lacks it, sets a git name and email from the GitHub account if none is set, and blocks pushes to `main`, `master`, and the repo's default branch (for example `develop`).
+- On a real app the script also: installs the lockfile's package manager (yarn, pnpm, or bun) if the Mac lacks it, sets a git name and email from the GitHub account if none is set, and blocks pushes to `main`, `master`, and the repo's default branch (for example `develop`). Claude is also told never to run migrations, deploys, or release builds.
+- The app menu is the `STARTER_REPOS` list at the top of `pm-prototype.sh`; add a line to offer another app. Being on the menu grants nothing — the person still needs GitHub access to that repo.
