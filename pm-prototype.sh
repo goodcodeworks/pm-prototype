@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# pm-prototype.sh — one-command setup for PMs to build functional designs
-# with Claude Code on a Mac.
+# pm-prototype.sh — one-command Mac setup for people who are not engineers
+# (product, QA, customer support) to work with Claude Code.
 #
 # What it does:
 #   1. Installs anything missing: Homebrew, Node.js, Claude Code CLI,
@@ -32,13 +32,17 @@ set -euo pipefail
 PROTOTYPE_HOME="${PROTOTYPE_HOME:-$HOME/Prototypes}"
 
 # ─── Curated starter apps ────────────────────────────────────────────────────
-# Real goodcodeworks apps a PM can copy and change on their own branch.
+# Real goodcodeworks apps a person can copy, explore, and change on their own branch.
 # Format: key|owner/repo|subdir|Label — description
 #   subdir = folder inside the repo that holds the runnable app ("" = repo root)
 # To offer another app, just add a line here — nothing else in the script
 # needs to change.
 
 STARTER_REPOS=(
+  "pos|goodcodeworks/pos||POS — the restaurant point-of-sale app (runs on Android tablets)"
+  "kds|goodcodeworks/kds||KDS — the kitchen display screens (runs on Android tablets)"
+  "dashboard|goodcodeworks/dashboard_||Dashboard — the restaurant back-office dashboard (runs in a browser)"
+  "online-ordering|goodcodeworks/online-ordering||Online Ordering — the customer-facing ordering site (runs in a browser)"
   "salon-pos|goodcodeworks/salon-pos|salon-software|Salon POS — booking calendar, clients, and stylist management"
 )
 
@@ -68,16 +72,16 @@ module scope (use `seededRandom` / `getToday()` from `@/lib/dates`), and no
 external image assets.
 
 `CONVENTIONS.md` says it wins on conflict, but it was written for a team of
-parallel build agents, not for this PM workflow. **These three of its rules do
+parallel build agents, not for this workflow. **These three of its rules do
 not apply here:**
 
 1. Its rule against running `npm run dev` / `npm run build` — in this workflow
-   running the dev server is expected and encouraged. The PM needs to see their
-   change. Run it.
+   running the dev server is expected and encouraged. The person needs to see
+   their change. Run it.
 2. Its rule "don't commit, leave the working tree dirty" — in this workflow you
-   commit to the PM's `pm/…` branch. That is the entire point.
+   commit to the person's `pm/…` branch. That is the entire point.
 3. Its per-agent ownership map restricting which paths you may touch — that is
-   for their multi-agent build. The PM may ask for changes anywhere inside
+   for their multi-agent build. The person may ask for changes anywhere inside
    `salon-software/`.
 EOF
       ;;
@@ -155,8 +159,24 @@ ensure_homebrew() {
     ok "Homebrew is installed"
     return
   fi
-  say "Installing Homebrew (this may ask for your Mac login password)..."
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  say "Installing Homebrew — the tool that installs everything else..."
+  printf "  It will ask for your %sMac login password%s. Nothing appears while you type\n" "$BOLD" "$NC"
+  printf "  it — that's normal. Type it, press Return, and press Return again if asked.\n"
+  local brew_installer
+  brew_installer="$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" \
+    || die "Couldn't download Homebrew. Check your internet connection and run this again."
+  # Under `curl | bash` stdin is this script, not the keyboard. Homebrew sees
+  # that, switches to non-interactive mode, refuses to ask for the password and
+  # gives up — which is every brand-new Mac. Hand it the real terminal instead.
+  local brew_ok=0
+  if [[ ! -t 0 && -r /dev/tty ]]; then
+    /bin/bash -c "$brew_installer" </dev/tty && brew_ok=1
+  else
+    /bin/bash -c "$brew_installer" && brew_ok=1
+  fi
+  [[ "$brew_ok" == "1" ]] || die "Homebrew didn't finish installing.
+  If it said \"Need sudo access\", your Mac account isn't an administrator — ask
+  whoever set up your Mac. Otherwise, run this script again."
   load_brew_path || die "Homebrew installed but not found on PATH. Open a new Terminal window and re-run this script."
   # Make brew available in future terminal sessions
   if ! grep -q 'brew shellenv' "$HOME/.zprofile" 2>/dev/null; then
@@ -233,7 +253,7 @@ ensure_superwhisper() {
 
 ensure_gh() {
   # GitHub CLI — only needed when starting from one of our real apps. It's what
-  # lets us copy a private repo and later open a pull request for the PM.
+  # lets us copy a private repo and later open a pull request for them.
   if ! command -v gh >/dev/null 2>&1; then
     ensure_homebrew
     say "Installing the GitHub tool..."
@@ -282,6 +302,25 @@ ensure_gh() {
   Open the Terminal app and run: gh auth login
   Once that finishes, run this script again."
   ok "Signed in to GitHub"
+}
+
+ensure_git_identity() {
+  # A new Mac has no git name or email, and without them the very first commit
+  # fails with "Please tell me who you are". Fill in whatever is missing from
+  # the GitHub account they just signed in with. Never overwrites existing values.
+  local name email login="" ghname="" id=""
+  name="$(git config --global user.name 2>/dev/null || true)"
+  email="$(git config --global user.email 2>/dev/null || true)"
+  [[ -z "$name" || -z "$email" ]] || return 0
+  { read -r login; read -r ghname; read -r id; } \
+    < <(gh api user --jq '.login, (.name // ""), .id' 2>/dev/null || true) || true
+  if [[ -z "$login" ]]; then
+    warn "Couldn't read your GitHub profile — if saving changes fails later, ask an engineer to set your git name."
+    return 0
+  fi
+  [[ -n "$name" ]]  || git config --global user.name "${ghname:-$login}"
+  [[ -n "$email" ]] || git config --global user.email "${id:+$id+}${login}@users.noreply.github.com"
+  ok "Your changes will be saved under the name $(git config --global user.name)"
 }
 
 ensure_cc_alias() {
@@ -441,13 +480,18 @@ EOF
 write_next_claude_md() {
   local dir="$1" name="$2"
   {
-    printf '# %s — PM Prototype\n\n' "$name"
+    printf '# %s — Prototype\n\n' "$name"
+    # create-next-app now ships an AGENTS.md warning that this Next.js differs
+    # from older versions. Claude Code stops reading AGENTS.md once a CLAUDE.md
+    # exists, so pull it back in explicitly.
+    if [[ -f "$dir/AGENTS.md" ]]; then printf '@AGENTS.md\n\n'; fi
     cat <<'EOF'
-You are helping a **product manager** build a functional design prototype.
+You are helping a teammate who is **not an engineer** (product, QA, or
+customer support) build a functional design prototype.
 This is a throwaway prototype for exploring product ideas — optimize for
 speed and visual quality, not production readiness.
 
-## The user is a PM, not an engineer
+## The user is not an engineer
 
 - Explain what you did in plain language. Avoid jargon.
 - Never ask them to edit code themselves — make the change for them.
@@ -469,10 +513,10 @@ speed and visual quality, not production readiness.
 
 - After changes, confirm the app still compiles (the dev server hot-reloads;
   if in doubt run `npm run build`).
-- Remind the PM the preview lives at http://localhost:3000 and to start it
+- Remind them the preview lives at http://localhost:3000 and to start it
   with `npm run dev` if it isn't running.
 
-## Good prompts the PM might give you
+## Good prompts they might give you
 
 - "Build a dashboard page with the KPI cards and revenue chart"
 - "Add a customers page with search and a detail panel"
@@ -606,6 +650,7 @@ write_getting_started() {
   # For kind=repo the extra args are: <app dir> <dev command> <branch> [outfile]
   local dir="$1" name="$2" kind="$3" appdir="${4:-}" devcmd="${5:-}" branch="${6:-}"
   local out="${7:-$dir/GETTING_STARTED.md}"
+  local preview_url="${8:-}" needs_env="${9:-0}" base="${10:-main}" native="${11:-0}"
   {
     printf '# Getting started with %s\n\n' "$name"
     if [[ "$kind" == "repo" ]]; then
@@ -622,28 +667,68 @@ claude
 
 (Tip: \`cc\` works as a shortcut for \`claude\`.)
 
-Then describe the change you want, for example:
+Then just say what you need. You don't have to change anything — asking
+questions is a perfectly good use of this. For example:
 
 - "Walk me through what this app does"
-- "On the booking screen, show the stylist's next free slot"
-- "Make the checkout total easier to read on a phone"
+- "How does <a feature> work? Explain it like I'm new here"
+- "A customer says <what they saw>. What could cause that?"
+- "Is this a bug? <what happened, and what you expected>"
+- "Write that up as a bug report with steps to reproduce"
+- "Change <something> on the <screen name> screen"
 
 ## Seeing the app
+EOF
+      if [[ "$native" == "1" ]]; then
+        cat <<EOF
 
-In a second Terminal tab:
+This one is a tablet app, so it doesn't open in a browser on your Mac. To see
+it running you need a test tablet (or an emulator) that an engineer has set up
+for it — ask them for one.
+
+You don't need that to ask Claude how the app works, to check whether
+something is a bug, or to make a change and share it for review.
+EOF
+      else
+        cat <<EOF
+
+The easiest way: ask Claude
+
+> "Start the app so I can see it"
+
+Claude starts it and tells you the address to open in your browser. It
+updates live as Claude makes changes.
+EOF
+      fi
+      if [[ "$native" != "1" && -n "$devcmd" ]]; then
+        cat <<EOF
+
+Prefer to start it yourself? In a second Terminal tab:
 
 \`\`\`
 cd "$appdir"
 $devcmd
 \`\`\`
 
-Then open **http://localhost:3000** in your browser. It updates live as
-Claude makes changes.
+Then open ${preview_url:+**$preview_url** — or, if that is blank, }the address it prints.
+EOF
+      fi
+      if [[ "$native" != "1" && "$needs_env" == "1" ]]; then
+        cat <<EOF
+
+**One thing first:** this app needs a settings file called \`.env\`, which
+holds private keys and is not included in your copy. Until an engineer gives
+you one, the app may not start or may show nothing. Ask an engineer for "the
+.env file for this app" and put it in \`$appdir\`. Asking Claude
+questions about the app works fine without it.
+EOF
+      fi
+      cat <<EOF
 
 ## Your branch
 
 You're on the branch \`$branch\` — your own copy of the code. The team's
-main version is untouched.
+version (\`$base\`) is untouched, and this copy won't let you change it by accident.
 
 ## Sharing your changes
 
@@ -743,7 +828,7 @@ scaffold_next() {
   local appdir="$base/app"
   [[ -d "$appdir" ]] || die "Unexpected project layout — couldn't find the app/ directory in $dir"
 
-  say "Adding mock data and PM configuration..."
+  say "Adding mock data and Claude instructions..."
   write_mock_data_ts "$base/lib/mock-data.ts"
   write_next_page "$appdir/page.tsx"
   write_next_claude_md "$dir" "$name"
@@ -757,12 +842,13 @@ scaffold_next() {
 write_html_claude_md() {
   local dir="$1" name="$2"
   {
-    printf '# %s — PM Prototype (plain HTML)\n\n' "$name"
+    printf '# %s — Prototype (plain HTML)\n\n' "$name"
     cat <<'EOF'
-You are helping a **product manager** build a functional design mockup.
+You are helping a teammate who is **not an engineer** (product, QA, or
+customer support) build a functional design mockup.
 This is a throwaway prototype — optimize for speed and visual quality.
 
-## The user is a PM, not an engineer
+## The user is not an engineer
 
 - Explain what you did in plain language. Avoid jargon.
 - Never ask them to edit code themselves — make the change for them.
@@ -782,7 +868,7 @@ This is a throwaway prototype — optimize for speed and visual quality.
 
 ## After every change
 
-Remind the PM to refresh the page in their browser (or run `open index.html`).
+Remind them to refresh the page in their browser (or run `open index.html`).
 EOF
   } > "$dir/CLAUDE.md"
 }
@@ -911,6 +997,9 @@ EOF
 # Set by scaffold_repo, read by print_next_steps.
 REPO_APP_DIR=""
 REPO_DEV_CMD=""
+REPO_PREVIEW_URL=""
+REPO_NATIVE="0"
+REPO_BASE=""
 REPO_BRANCH=""
 REPO_STARTED_FILE=""
 
@@ -949,33 +1038,51 @@ git_local_exclude() { # ignore files locally without touching the tracked .gitig
   done
 }
 
-write_push_guard() { # refuse pushes to main/master from this clone
+default_branch_of() { # the branch the team builds on: main, develop, ...
+  local dir="$1" ref
+  ref="$(git -C "$dir" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  printf '%s' "${ref#origin/}"
+}
+
+write_push_guard() { # refuse pushes to the team's branches from this clone
   # These repos are on a plan without branch protection, so nothing on GitHub's
-  # side stops a push to main. Both guards live inside .git/, so they never show
-  # up in the PM's pull request.
+  # side stops a push to the shared branch. Both guards live inside .git/, so
+  # they never show up in the person's pull request.
+  #
+  # Guarded: main, master, and whatever the repo's default branch is — several
+  # of our apps build on `develop`, which a main/master-only guard would miss.
   local dir="$1" b
   local hook="$dir/.git/hooks/pre-push"
   mkdir -p "$(dirname "$hook")"
   cat > "$hook" <<'HOOK'
 #!/usr/bin/env bash
 # Added by pm-prototype.sh — keeps the shared app safe.
-# Blocks pushes to main/master. Your own pm/ branch pushes normally.
+# Blocks pushes to the team's branches (main, master, and this repo's default
+# branch). Your own pm/ branch pushes normally.
+default_ref="$(git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null || true)"
+default_branch="${default_ref#refs/remotes/origin/}"
 while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  blocked=0
   case "$remote_ref" in
-    refs/heads/main|refs/heads/master)
-      printf '\n\033[0;31m✗\033[0m That would change the real app for everyone.\n\n'
-      printf 'Your work goes on your own branch instead. Ask Claude to\n'
-      printf '"share this with the team" and it opens a pull request, so an\n'
-      printf 'engineer can read the changes before anything reaches customers.\n\n'
-      exit 1
-      ;;
+    refs/heads/main|refs/heads/master) blocked=1 ;;
   esac
+  if [ -n "$default_branch" ] && [ "$remote_ref" = "refs/heads/$default_branch" ]; then
+    blocked=1
+  fi
+  if [ "$blocked" = "1" ]; then
+    printf '\n\033[0;31m✗\033[0m That would change the real app for everyone.\n\n'
+    printf 'Your work goes on your own branch instead. Ask Claude to\n'
+    printf '"share this with the team" and it opens a pull request, so an\n'
+    printf 'engineer can read the changes before anything reaches customers.\n\n'
+    exit 1
+  fi
 done
 exit 0
 HOOK
   chmod 755 "$hook"
-  # Second layer: if the hook is ever removed, pushing while on main still fails.
-  for b in main master; do
+  # Second layer: if the hook is ever removed, pushing while on a team branch still fails.
+  for b in main master "$(default_branch_of "$dir")"; do
+    [[ -n "$b" ]] || continue
     if git -C "$dir" show-ref --verify --quiet "refs/heads/$b"; then
       git -C "$dir" config "branch.$b.pushRemote" no-push-main || true
     fi
@@ -1003,23 +1110,83 @@ find_app_dir() { # find_app_dir <repo dir> <subdir> -> prints app dir; 1 if no p
   printf '%s' "$found"
 }
 
-pkg_manager_for() { # pick the lockfile's package manager, but only if it's installed
+lockfile_pm() { # which package manager the app's lockfile belongs to
   local appdir="$1"
-  if   [[ -f "$appdir/bun.lockb"      ]] && command -v bun  >/dev/null 2>&1; then printf 'bun'
-  elif [[ -f "$appdir/pnpm-lock.yaml" ]] && command -v pnpm >/dev/null 2>&1; then printf 'pnpm'
-  elif [[ -f "$appdir/yarn.lock"      ]] && command -v yarn >/dev/null 2>&1; then printf 'yarn'
+  if   [[ -f "$appdir/bun.lock" || -f "$appdir/bun.lockb" ]]; then printf 'bun'
+  elif [[ -f "$appdir/pnpm-lock.yaml" ]]; then printf 'pnpm'
+  elif [[ -f "$appdir/yarn.lock"      ]]; then printf 'yarn'
   else printf 'npm'
   fi
 }
 
+pkg_manager_for() { # the lockfile's package manager, installed first if this Mac lacks it
+  # A new Mac only has npm. Running npm against a yarn or bun lockfile ignores
+  # the versions the team pinned (and some of our apps refuse npm outright), so
+  # install the right tool rather than quietly substituting npm.
+  # Runs inside $(...): progress goes to stderr, only the name goes to stdout.
+  local appdir="$1" pm
+  pm="$(lockfile_pm "$appdir")"
+  if [[ "$pm" != "npm" ]] && ! command -v "$pm" >/dev/null 2>&1; then
+    say "This app uses $pm — installing it..." >&2
+    npm install -g "$pm" >/dev/null 2>&1 || true
+    hash -r 2>/dev/null || true
+    if ! command -v "$pm" >/dev/null 2>&1; then
+      warn "Couldn't install $pm — falling back to npm. If the app misbehaves, ask an engineer to install $pm." >&2
+      pm="npm"
+    fi
+  fi
+  printf '%s' "$pm"
+}
+
+dev_script_for() { # the package.json script that starts the app: dev, else web, else start
+  local appdir="$1"
+  node -e '
+    const s = require(process.argv[1]).scripts || {};
+    const k = ["dev", "web", "start"].find((n) => s[n]);
+    if (k) process.stdout.write(k);
+  ' "$appdir/package.json" 2>/dev/null || true
+}
+
+app_is_next() { grep -q '"next"[[:space:]]*:' "$1/package.json" 2>/dev/null; }
+
+app_is_native_only() { # a tablet/phone app with no web build: React Native without react-native-web
+  # These can't be opened in a browser on a Mac, so nothing should promise that.
+  node -e '
+    const p = require(process.argv[1]);
+    const d = Object.assign({}, p.devDependencies, p.dependencies);
+    const native = d["react-native"] || d["expo"];
+    process.exit(native && !d["react-native-web"] && !d["next"] ? 0 : 1);
+  ' "$1/package.json" 2>/dev/null
+}
+
+app_needs_env() { # has an example settings file but no real one yet
+  local appdir="$1" f
+  [[ -f "$appdir/.env" || -f "$appdir/.env.local" ]] && return 1
+  for f in "$appdir"/.env.example "$appdir"/.env*.example "$appdir"/.env.sample; do
+    [[ -f "$f" ]] && return 0
+  done
+  return 1
+}
+
+node_pin_note() { # prints a note if the app pins a different Node major than this Mac runs
+  local dir="$1" appdir="$2" f pin="" have
+  for f in "$appdir/.nvmrc" "$dir/.nvmrc" "$appdir/.node-version" "$dir/.node-version"; do
+    if [[ -f "$f" ]]; then pin="$(tr -d ' \r\nv' < "$f")"; break; fi
+  done
+  [[ "$pin" =~ ^[0-9]+ ]] || return 0
+  have="$(node -p 'process.versions.node' 2>/dev/null || true)"
+  [[ -n "$have" && "${pin%%.*}" != "${have%%.*}" ]] || return 0
+  printf 'This app pins Node %s, and this Mac runs Node %s.' "$pin" "$have"
+}
+
 restore_lockfiles() {
   # An install can rewrite a tracked lockfile (e.g. when the repo's lockfile has
-  # drifted from its package.json). That's not the PM's change, so put it back —
-  # otherwise it turns up as noise in their pull request.
+  # drifted from its package.json). That's not the person's change, so put it
+  # back — otherwise it turns up as noise in their pull request.
   local dir="$1"
   git -C "$dir" diff --name-only 2>/dev/null | while IFS= read -r f; do
     case "${f##*/}" in
-      package-lock.json|npm-shrinkwrap.json|pnpm-lock.yaml|yarn.lock|bun.lockb)
+      package-lock.json|npm-shrinkwrap.json|pnpm-lock.yaml|yarn.lock|bun.lock|bun.lockb)
         git -C "$dir" checkout -- "$f" 2>/dev/null || true
         ;;
     esac
@@ -1027,18 +1194,28 @@ restore_lockfiles() {
 }
 
 write_repo_settings() {
-  local dir="$1" pm="$2"
+  local dir="$1" pm="$2" devscript="${3:-dev}"
   mkdir -p "$dir/.claude"
+  # Pre-approve the app's own start command, in both spellings Claude might use
+  # (`yarn run web` and `yarn web`). npm has no short form.
+  local extra=""
+  [[ "$devscript" == "dev" ]] || extra+="      \"Bash($pm run $devscript:*)\","$'\n'
+  if [[ "$pm" != "npm" ]]; then
+    extra+="      \"Bash($pm $devscript:*)\","$'\n'
+    extra+="      \"Bash($pm lint:*)\","$'\n'
+    extra+="      \"Bash($pm typecheck:*)\","$'\n'
+  fi
   # settings.local.json, not settings.json — local overrides that Claude Code
-  # keeps out of git, so the PM's pull request stays clean.
+  # keeps out of git, so the person's pull request stays clean.
   cat > "$dir/.claude/settings.local.json" <<EOF
 {
   "permissions": {
     "defaultMode": "acceptEdits",
     "allow": [
-      "Bash($pm run dev:*)",
+${extra}      "Bash($pm run dev:*)",
       "Bash($pm run build:*)",
       "Bash($pm run lint:*)",
+      "Bash($pm run typecheck:*)",
       "Bash($pm install:*)",
       "Bash(npx tsc:*)",
       "Bash(open http://localhost:*)",
@@ -1057,26 +1234,57 @@ EOF
 }
 
 write_repo_claude_md() {
+  # <out> <repo> <branch> <subdir> <pm> <key> <team branch> <start command>
+  # <1 if the app has its own CLAUDE.md/AGENTS.md> <1 if it needs a .env> <node note>
+  # <1 if it is a tablet/phone app with no web build>
   local out="$1" repo="$2" branch="$3" subdir="$4" pm="$5" key="${6:-}"
+  local base="${7:-main}" devcmd="${8:-}" has_own="${9:-0}" needs_env="${10:-0}" node_note="${11:-}"
+  local native="${12:-0}"
+  mkdir -p "$(dirname "$out")"
   {
-    printf '# Working with a PM on %s\n\n' "$repo"
+    printf '# Working with a non-engineer on %s\n\n' "$repo"
     cat <<EOF
-This is a **real, production codebase** — not a throwaway prototype. A product
-manager is making a change to it on the branch \`$branch\`.
+This is a **real, production codebase** — not a throwaway prototype. The person
+you are working with is on the branch \`$branch\`. They are **not an engineer**:
+they work in product, QA, or customer support.
 EOF
     if [[ -n "$subdir" ]]; then
       # the backticks are markdown, not a command substitution
       # shellcheck disable=SC2016
       printf '\nThe runnable app lives in `%s/`. Run commands from there.\n' "$subdir"
     fi
+    if [[ "$has_own" == "1" ]]; then
+      cat <<EOF
+
+This app has its own instructions for Claude (\`CLAUDE.md\` / \`AGENTS.md\`).
+Follow them for how the code is written, built, and tested. This note adds two
+things they don't cover — who you are working with, and how their work is
+shared — and on those two things this note wins.
+EOF
+    fi
     cat <<EOF
 
-## The user is a PM, not an engineer
+## The user is not an engineer
 
 - Explain what you did in plain language. Avoid jargon.
 - Never ask them to edit code themselves — make the change for them.
 - Never paste code at them to explain a change; describe the behaviour instead.
+- Talk about screens, buttons, and settings — not files and functions.
 - When something needs a decision, offer 2–3 concrete options with a recommendation.
+
+## They may want answers, not changes
+
+QA and support people usually come here to *understand* the app: "how does this
+work", "why would a customer see that", "is this a bug".
+
+- Answer from the code, in plain language. Do not change anything unless they
+  ask for a change.
+- For a suspected bug: check the code, say whether it looks real, then offer to
+  write it up for a ticket — what happens, what should happen, steps to
+  reproduce, and the likely cause.
+- You can only see the code. You cannot see the live system, a customer's
+  account, or their data — say so rather than guessing what happened to them.
+- If you are not sure, say you are not sure and what would settle it.
 
 ## Follow this codebase — do not invent your own way of doing things
 
@@ -1090,15 +1298,66 @@ EOF
   first, write second.
 - Keep changes as small and focused as the request. No drive-by refactors.
 
-## Verifying your work
+## Running the app and checking your work
 
-- Run \`$pm run dev\` and check the change actually works.
-- Before sharing, run \`$pm run build\` (and \`$pm run lint\` if it exists) and
-  fix anything you broke.
+EOF
+    if [[ "$native" == "1" ]]; then
+      cat <<EOF
+- **This is a tablet/phone app, not a website. It does not open in a browser
+  on this Mac.** Running it needs a tablet, phone, or emulator with a
+  development build, which an engineer sets up. If they ask to see it running,
+  tell them that plainly and suggest they ask an engineer for a test device —
+  do not try start commands until one seems to work, and do not install
+  emulators or add packages to force a browser version.
+- Reading the code, answering questions, and making changes all work without
+  a device.
+EOF
+    elif [[ -n "$devcmd" ]]; then
+      cat <<EOF
+- When they want to see the app, start it yourself with \`$devcmd\` (in the
+  background) and give them the address it prints to open in their browser.
+EOF
+    else
+      cat <<EOF
+- When they want to see the app, work out how it starts from its README or
+  \`package.json\`, start it yourself, and give them the address to open.
+EOF
+    fi
+    if [[ "$native" == "1" ]]; then
+      cat <<EOF
+- After a change, you cannot look at the screen yourself. Run the app's own
+  checks (lint, type check, tests — whichever its \`package.json\` has), fix
+  anything you broke, and say clearly that the change was checked that way and
+  has **not** been seen on a device. Put the same sentence in the pull request.
+EOF
+    else
+      cat <<EOF
+- After a change, check it actually works before you say it is done.
+- Before sharing, run the app's own checks (lint, type check, tests — whichever
+  its \`package.json\` has) and fix anything you broke.
+EOF
+    fi
+    if [[ "$needs_env" == "1" ]]; then
+      cat <<EOF
+- **This copy has no \`.env\` file yet**, so the app may not start or may not
+  connect to anything. Those values are secrets this setup cannot fetch. If the
+  app fails for that reason, tell them plainly: "this needs a settings file an
+  engineer has to give you" — and never invent values or copy them from
+  elsewhere. Reading and explaining the code works fine without it.
+EOF
+    fi
+    if [[ -n "$node_note" ]]; then
+      cat <<EOF
+- $node_note If an install or the app fails with a version or "engine" error,
+  that mismatch is the likely cause: tell them so and that an engineer needs to
+  sort it out. Do not try to switch Node versions yourself.
+EOF
+    fi
+    cat <<EOF
 
 ## Sharing the work
 
-The PM is on branch \`$branch\`. Commit there as you go.
+They are on branch \`$branch\`. Commit there as you go.
 
 When they say **"share this"**, **"send it to the team"**, or **"I'm done"**:
 
@@ -1106,18 +1365,25 @@ When they say **"share this"**, **"send it to the team"**, or **"I'm done"**:
 2. \`git push\` the branch.
 3. Run \`gh pr create\` with a title and a short description of *what changed and
    why*, written for a human reviewer.
-4. Give the PM the pull request URL and tell them to send that link to the team.
+4. Give them the pull request URL and tell them to send that link to the team.
 
 ## Hard rules
 
-- Never commit to \`main\`. Never check out \`main\`. Stay on \`$branch\`.
-- **Pushing to \`main\` is blocked in this copy.** A git hook refuses it. If you
-  hit that block, do not retry it, do not try to work around it, and do not
-  remove the hook — it means the change belongs on \`$branch\` and should reach
-  \`main\` through a pull request. Switch to the commit-and-\`gh pr create\` path.
+- The team's branch is \`$base\`. Never commit to it. Never check it out. Stay
+  on \`$branch\`.
+- **Pushing to \`$base\` (or \`main\`) is blocked in this copy.** A git hook
+  refuses it. If you hit that block, do not retry it, do not try to work around
+  it, and do not remove the hook — it means the change belongs on \`$branch\`
+  and should reach \`$base\` through a pull request. Switch to the
+  commit-and-\`gh pr create\` path.
 - Never force-push. Never rewrite history.
 - Never commit secrets, API keys, \`.env\` files, or credentials.
 - Never delete or rewrite unrelated code to make something work.
+- Never run anything that changes a live system or ships a build: database
+  migrations, deploys, store or over-the-air releases (for example
+  \`supabase db push\`, \`supabase functions deploy\`, \`eas build\`,
+  \`eas submit\`, \`eas update\`, or a \`deploy\`/\`release\` script). If the
+  work needs one of those, say so and leave it for an engineer.
 EOF
     # Anything odd about this specific repo (see starter_notes above).
     if [[ -n "$key" ]]; then starter_notes "$key"; fi
@@ -1131,8 +1397,10 @@ scaffold_repo() {
   repo="$(starter_field "$entry" 2)"
   subdir="$(starter_field "$entry" 3)"
   label="$(starter_label "$entry")"
+  label="${label%% — *}"   # just the name ("Dashboard"), without the description
 
   ensure_gh
+  ensure_git_identity
 
   say "Getting a copy of $label..."
   gh repo clone "$repo" "$dir" -- --quiet || die "Couldn't copy $repo.
@@ -1153,21 +1421,30 @@ scaffold_repo() {
   fi
   ok "You're on your own branch: $branch"
 
-  # Nothing on GitHub's side protects main on these repos, so guard it here.
+  # Nothing on GitHub's side protects the team's branch on these repos, so guard it here.
+  local base
+  base="$(default_branch_of "$dir")"
+  [[ -n "$base" ]] || base="main"
   write_push_guard "$dir"
 
   # ── Where the runnable app actually is ──
-  local appdir="" pm="npm" can_install=1
+  local appdir="" pm="npm" can_install=1 devscript="" devcmd="" native=0
   if appdir="$(find_app_dir "$dir" "$subdir")" && [[ -f "$appdir/package.json" ]]; then
+    # Node first: installing the app's package manager and reading its scripts both need it.
+    node_ok || ensure_node
     pm="$(pkg_manager_for "$appdir")"
+    devscript="$(dev_script_for "$appdir")"
+    # A tablet app's start script only serves a device — don't offer it as
+    # "open this address in your browser".
+    if app_is_native_only "$appdir"; then native=1; devscript=""; fi
+    [[ -z "$devscript" ]] || devcmd="$pm run $devscript"
   else
     appdir="$dir"
     can_install=0
   fi
 
   if [[ "$can_install" == "1" ]]; then
-    node_ok || ensure_node
-    # Install straight from the lockfile so it isn't rewritten under the PM.
+    # Install straight from the lockfile so it isn't rewritten under them.
     local -a install_cmd
     case "$pm" in
       npm)  if [[ -f "$appdir/package-lock.json" ]]; then install_cmd=(npm ci); else install_cmd=(npm install); fi ;;
@@ -1190,28 +1467,47 @@ scaffold_repo() {
     printf "  Ask Claude what this project needs to run.\n"
   fi
 
-  # ── PM guidance, written so it never shows up in their pull request ──
+  # ── Guidance for Claude, written so it never shows up in their pull request ──
   say "Adding your Claude instructions..."
 
-  # The PM opens Claude inside the app folder, so the config belongs there —
-  # not at the top of the repo. Paths added to .git/info/exclude have to be
+  # They open Claude inside the app folder, so the config belongs there — not
+  # at the top of the repo. Paths added to .git/info/exclude have to be
   # relative to the repo root, hence the prefix.
   local rel=""
   [[ "$appdir" == "$dir" ]] || rel="${appdir#"$dir"/}/"
 
-  write_repo_settings "$appdir" "$pm"
+  write_repo_settings "$appdir" "$pm" "${devscript:-dev}"
   local created=("${rel}.claude/settings.local.json")
 
+  # Does the app (or the repo above it) already carry instructions for Claude?
+  local has_own=0 f
+  for f in "$appdir/CLAUDE.md" "$appdir/.claude/CLAUDE.md" "$appdir/AGENTS.md" \
+           "$dir/CLAUDE.md" "$dir/.claude/CLAUDE.md" "$dir/AGENTS.md"; do
+    if [[ -e "$f" ]]; then has_own=1; break; fi
+  done
+
   local guide="$appdir/CLAUDE.md" guide_rel="${rel}CLAUDE.md"
-  if [[ -e "$guide" ]] || repo_tracks "$dir" "$guide_rel"; then
-    guide="$appdir/.claude/pm-guide.md"
-    guide_rel="${rel}.claude/pm-guide.md"
-    warn "This app already has its own CLAUDE.md — leaving it exactly as it is."
-    printf "  Your PM notes went to %s instead. The app's own\n" "$guide_rel"
-    printf "  CLAUDE.md takes precedence, which is what you want.\n"
+  if [[ "$has_own" == "1" ]]; then
+    # Never touch the app's own file. Our note goes in .claude/rules/, the one
+    # other place Claude Code reads at the start of every session — and unlike
+    # a new CLAUDE.md, a rules file doesn't stop a repo's AGENTS.md from loading.
+    guide="$appdir/.claude/rules/pm-guide.md"
+    guide_rel="${rel}.claude/rules/pm-guide.md"
+    ok "This app has its own instructions for Claude — left exactly as they are."
+    printf "  Your notes went to %s, which Claude reads alongside them.\n" "$guide_rel"
   fi
   created+=("$guide_rel")
-  write_repo_claude_md "$guide" "$repo" "$branch" "$subdir" "$pm" "$key"
+
+  local needs_env=0 node_note=""
+  if [[ "$can_install" == "1" ]]; then
+    app_needs_env "$appdir" && needs_env=1
+    node_note="$(node_pin_note "$dir" "$appdir")"
+  fi
+  write_repo_claude_md "$guide" "$repo" "$branch" "$subdir" "$pm" "$key" \
+    "$base" "$devcmd" "$has_own" "$needs_env" "$node_note" "$native"
+
+  local preview_url=""
+  if [[ "$can_install" == "1" ]] && app_is_next "$appdir"; then preview_url="http://localhost:3000"; fi
 
   local started="$dir/GETTING_STARTED.md"
   if repo_tracks "$dir" "GETTING_STARTED.md"; then
@@ -1220,14 +1516,31 @@ scaffold_repo() {
   else
     created+=("GETTING_STARTED.md")
   fi
-  write_getting_started "$dir" "$name" "repo" "$appdir" "$pm run dev" "$branch" "$started"
+  write_getting_started "$dir" "$name" "repo" "$appdir" "$devcmd" "$branch" "$started" \
+    "$preview_url" "$needs_env" "$base" "$native"
 
   # Ignore our additions locally only — the tracked .gitignore is untouched,
-  # so `git status` stays clean and the PM's pull request has no noise in it.
+  # so `git status` stays clean and their pull request has no noise in it.
   git_local_exclude "$dir" "${created[@]}"
 
+  if [[ "$native" == "1" ]]; then
+    warn "This is a tablet app — it won't open in a browser on your Mac."
+    printf "  You can explore it, ask Claude questions, and make changes right away.\n"
+    printf "  To see it running, ask an engineer for a test tablet set up for it.\n"
+  elif [[ "$needs_env" == "1" ]]; then
+    warn "This app needs a settings file (.env) that only an engineer can give you."
+    printf "  You can explore it and ask Claude questions right away. To actually run\n"
+    printf "  it on your Mac, ask an engineer for the .env file for %s.\n" "$label"
+  fi
+  if [[ -n "$node_note" ]]; then
+    warn "$node_note If it won't start, mention that to an engineer."
+  fi
+
   REPO_APP_DIR="$appdir"
-  REPO_DEV_CMD="$pm run dev"
+  REPO_DEV_CMD="$devcmd"
+  REPO_PREVIEW_URL="$preview_url"
+  REPO_NATIVE="$native"
+  REPO_BASE="$base"
   REPO_BRANCH="$branch"
   REPO_STARTED_FILE="$started"
   ok "$label is ready at $dir"
@@ -1253,10 +1566,15 @@ print_next_steps() {
   printf "  1. %scd \"%s\"%s\n" "$BOLD" "$cddir" "$NC"
   printf "  2. %sclaude%s   (or just %scc%s — sign in if it's your first time)\n" "$BOLD" "$NC" "$BOLD" "$NC"
   if [[ "$kind" == "repo" ]]; then
-    printf "  3. Describe the change you want\n"
-    printf "\n  Preview: run %s%s%s in a second tab, open http://localhost:3000\n" "$BOLD" "$REPO_DEV_CMD" "$NC"
-    printf "  You're on branch %s%s%s — main is untouched.\n" "$BOLD" "$REPO_BRANCH" "$NC"
-    printf "  When you're done, tell Claude %s\"share this with the team\"%s and it\n" "$BOLD" "$NC"
+    printf "  3. Ask a question about the app, or describe the change you want\n"
+    if [[ "$REPO_NATIVE" == "1" ]]; then
+      printf "\n  This is a tablet app: it won't open in a browser on your Mac. To see it\n"
+      printf "  running, ask an engineer for a test tablet. Everything else works now.\n"
+    else
+      printf "\n  To see it running, ask Claude %s\"start the app so I can see it\"%s.\n" "$BOLD" "$NC"
+    fi
+    printf "  You're on branch %s%s%s — the team's version (%s) is untouched.\n" "$BOLD" "$REPO_BRANCH" "$NC" "${REPO_BASE:-main}"
+    printf "  If you change something, tell Claude %s\"share this with the team\"%s and it\n" "$BOLD" "$NC"
     printf "  will open a pull request and give you the link.\n"
   else
     printf "  3. Describe what you want to build\n"
@@ -1348,7 +1666,7 @@ cmd_new() {
 
 cmd_interactive() {
   printf "\n%s%sPM Prototype Studio%s\n" "$BOLD" "$CYAN" "$NC"
-  printf "Build functional designs by talking to Claude.\n\n"
+  printf "Build prototypes, or explore and change our real apps, by talking to Claude.\n\n"
 
   cmd_setup
   echo
@@ -1364,7 +1682,7 @@ cmd_interactive() {
 
   local raw_name="" name="" dir=""
   while :; do
-    raw_name="$(ask $'What do you want to call your prototype? (e.g. checkout-redesign)\n> ')" || { ask_aborted; return 0; }
+    raw_name="$(ask $'What do you want to call this project? (e.g. checkout-redesign, or your-name-pos)\n> ')" || { ask_aborted; return 0; }
     [[ -n "$raw_name" ]] || raw_name="my-prototype"
     name="$(slugify "$raw_name")"
     if [[ -z "$name" ]]; then
@@ -1384,7 +1702,7 @@ cmd_interactive() {
   done
 
   local choice=""
-  choice="$(ask $'\nWhat do you want to build?\n  1) Next.js — interactive web app: dashboards, flows, multi-page (recommended)\n  2) Plain HTML — single page, opens instantly, no server\n  3) Start from one of our apps — change a real goodcodeworks app\n> ')" || { ask_aborted; return 0; }
+  choice="$(ask $'\nWhat do you want to build?\n  1) Next.js — interactive web app: dashboards, flows, multi-page (recommended)\n  2) Plain HTML — single page, opens instantly, no server\n  3) Start from one of our apps — explore or change a real goodcodeworks app (QA and support: pick this)\n> ')" || { ask_aborted; return 0; }
 
   local repo_key=""
   if [[ "$choice" == "3" ]]; then
@@ -1395,7 +1713,7 @@ cmd_interactive() {
     done
     local pick=""
     while :; do
-      pick="$(ask $'\nWhich app do you want to change?\n'"$menu"'> ')" || { ask_aborted; return 0; }
+      pick="$(ask $'\nWhich app do you want to open?\n'"$menu"'> ')" || { ask_aborted; return 0; }
       [[ -n "$pick" ]] || pick="1"
       if [[ "$pick" =~ ^[0-9]+$ ]] && (( pick >= 1 && pick <= ${#STARTER_REPOS[@]} )); then
         repo_key="$(starter_field "${STARTER_REPOS[$((pick - 1))]}" 1)"
@@ -1428,7 +1746,7 @@ cmd_interactive() {
 
 usage() {
   cat <<'EOF'
-pm-prototype.sh — build functional designs with Claude Code
+pm-prototype.sh — Mac setup for working with Claude Code (product, QA, support)
 
 Usage:
   ./pm-prototype.sh                          Interactive: check tools, then create a project
@@ -1450,7 +1768,8 @@ For engineers: --repo also accepts any owner/repo or GitHub URL, e.g.
   ./pm-prototype.sh new spike --repo goodcodeworks/some-app
   ./pm-prototype.sh new spike --repo https://github.com/goodcodeworks/some-app
 It clones with `gh`, makes a pm/<user>-<name> branch, installs deps with the
-lockfile's package manager, and writes local-only Claude config (git-clean).
+lockfile's package manager (installing yarn/pnpm/bun if missing), guards the
+default branch against pushes, and writes local-only Claude config (git-clean).
 EOF
 }
 
