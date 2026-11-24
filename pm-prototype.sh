@@ -1748,7 +1748,8 @@ add_several_apps() { # add_several_apps <base name> "<key> <key> ..." — one pr
     echo
     warn "Not set up: $failed."
     printf "  You may not have access yet. Ask an engineer to add you, then run this\n"
-    printf "  again with the same name — the apps above are skipped, not copied twice.\n"
+    printf "  again with the same name and the same numbers — the apps above are\n"
+    printf "  skipped, not copied twice.\n"
   fi
   printf "%s─────────────────────────────────────────────%s\n" "$BOLD" "$NC"
 

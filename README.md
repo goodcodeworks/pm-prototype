@@ -53,7 +53,7 @@ The apps on the menu:
 
 For POS and KDS you can still ask Claude anything about how they work and make changes for review; to see them running, ask an engineer for a test tablet.
 
-**Work in more than one app?** At the app menu, type the numbers together, like `1 2 3`. Each app gets its own folder named `<your project name>-<app>` (for example `josh-pos`, `josh-kds`, `josh-dashboard`), and setup then asks which one to open. To add an app later, run the same command again with the same project name and pick it; apps you already have are skipped, not copied twice.
+**Work in more than one app?** At the app menu, type the numbers together, like `1 2 3`. Each app gets its own folder named `<your project name>-<app>` (for example `josh-pos`, `josh-kds`, `josh-dashboard`), and setup then asks which one to open. To add an app later, run the same command again, give it a new project name, and pick that app. If you repeat a run with the same name and the same numbers, the apps you already have are skipped, not copied twice.
 
 The browser apps need a private settings file (`.env`) before they will run on your Mac. Setup tells you if yours does; ask an engineer for it. Asking questions works without it.
 
