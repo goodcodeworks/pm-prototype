@@ -1576,6 +1576,8 @@ print_next_steps() {
     printf "  You're on branch %s%s%s — the team's version (%s) is untouched.\n" "$BOLD" "$REPO_BRANCH" "$NC" "${REPO_BASE:-main}"
     printf "  If you change something, tell Claude %s\"share this with the team\"%s and it\n" "$BOLD" "$NC"
     printf "  will open a pull request and give you the link.\n"
+    printf "\n  Need another of our apps too? Run the same setup line again, give it a\n"
+    printf "  new name, and pick that app. You can pick several at once (like: 2 3).\n"
   else
     printf "  3. Describe what you want to build\n"
     if [[ "$kind" == "next" ]]; then
@@ -1662,6 +1664,103 @@ cmd_new() {
   print_next_steps "$dir" "$kind"
 }
 
+picks_to_keys() { # "1 3", "1,3", "1 and 3" -> "pos dashboard"; 1 if a pick isn't on the menu
+  local raw tok keys="" key
+  # Anything that isn't a letter or a digit becomes a space, so commas work too.
+  raw="$(printf '%s' "$1" | tr -c '0-9a-zA-Z' ' ')"
+  for tok in $raw; do
+    [[ "$tok" == "and" ]] && continue
+    [[ "$tok" =~ ^[0-9]+$ ]] || return 1
+    tok=$((10#$tok))
+    (( tok >= 1 && tok <= ${#STARTER_REPOS[@]} )) || return 1
+    key="$(starter_field "${STARTER_REPOS[$((tok - 1))]}" 1)"
+    case " $keys " in
+      *" $key "*) ;;
+      *) keys="${keys:+$keys }$key" ;;
+    esac
+  done
+  [[ -n "$keys" ]] || return 1
+  printf '%s' "$keys"
+}
+
+add_several_apps() { # add_several_apps <base name> "<key> <key> ..." — one project per app
+  local base="$1" keys="$2"
+  local key k entry label subdir pname pdir appdir note rc
+
+  # "josh-pos" plus three apps should give josh-pos, josh-kds, ... not josh-pos-kds.
+  for k in $(starter_keys); do base="${base%-$k}"; done
+  [[ -n "$base" ]] || base="my"
+
+  mkdir -p "$PROTOTYPE_HOME"
+  # Sign in once, up front, so a sign-in problem stops us before anything is copied.
+  ensure_gh
+  ensure_git_identity
+
+  local -a ready_labels ready_dirs
+  local count=0 failed=""
+  for key in $keys; do
+    entry="$(starter_lookup "$key")"
+    label="$(starter_label "$entry")"
+    label="${label%% — *}"
+    subdir="$(starter_field "$entry" 3)"
+    pname="$base-$key"
+    pdir="$PROTOTYPE_HOME/$pname"
+    echo
+    if [[ -e "$pdir" ]]; then
+      ok "$label is already set up at $pdir — left as it is"
+    else
+      # In a subshell, so one app that can't be copied doesn't stop the others.
+      set +e
+      ( set -e; scaffold_repo "$pname" "$pdir" "$entry" )
+      rc=$?
+      set -e
+      if [[ "$rc" != "0" ]]; then
+        warn "$label wasn't set up. The other apps are not affected."
+        failed="${failed:+$failed, }$label"
+        continue
+      fi
+    fi
+    appdir="$(find_app_dir "$pdir" "$subdir")" || appdir="$pdir"
+    [[ -d "$appdir" ]] || appdir="$pdir"
+    note=""
+    if app_is_native_only "$appdir"; then note=" (tablet app — doesn't open on a Mac)"; fi
+    ready_labels[$count]="$label$note"
+    ready_dirs[$count]="$appdir"
+    count=$((count + 1))
+  done
+
+  echo
+  printf "%s─────────────────────────────────────────────%s\n" "$BOLD" "$NC"
+  if (( count == 0 )); then
+    die "None of the apps could be set up: $failed.
+  You may not have access to them yet — ask an engineer to add you, then run this again."
+  fi
+  printf "%sYour apps are ready.%s Each one has its own folder, on your own branch:\n\n" "$BOLD" "$NC"
+  local i=0
+  while (( i < count )); do
+    printf "  %d) %s%s%s\n     %s\n" "$((i + 1))" "$BOLD" "${ready_labels[$i]}" "$NC" "${ready_dirs[$i]}"
+    i=$((i + 1))
+  done
+  printf "\n  To open one later: %scd \"<its folder>\"%s and then %scc%s\n" "$BOLD" "$NC" "$BOLD" "$NC"
+  printf "  Ask a question about the app, or describe the change you want.\n"
+  printf "  If you change something, tell Claude %s\"share this with the team\"%s.\n" "$BOLD" "$NC"
+  if [[ -n "$failed" ]]; then
+    echo
+    warn "Not set up: $failed."
+    printf "  You may not have access yet. Ask an engineer to add you, then run this\n"
+    printf "  again with the same name — the apps above are skipped, not copied twice.\n"
+  fi
+  printf "%s─────────────────────────────────────────────%s\n" "$BOLD" "$NC"
+
+  local open=""
+  open="$(ask $'\nWhich one do you want to open with Claude now? Type its number, or press Return to skip.\n> ')" || return 0
+  if [[ "$open" =~ ^[0-9]+$ ]] && (( 10#$open >= 1 && 10#$open <= count )); then
+    launch_claude "${ready_dirs[$((10#$open - 1))]}"
+  else
+    printf "Okay — when you're ready: cd \"%s\" && claude\n" "${ready_dirs[0]}"
+  fi
+}
+
 # ─── Interactive flow ────────────────────────────────────────────────────────
 
 cmd_interactive() {
@@ -1694,7 +1793,7 @@ cmd_interactive() {
       local reopen=""
       reopen="$(ask "\"$name\" already exists. Open it with Claude instead? [Y/n] ")" || { ask_aborted; return 0; }
       case "$(printf '%s' "${reopen:-y}" | tr '[:upper:]' '[:lower:]')" in
-        n*) continue ;;
+        n*) printf "Okay — give the new project a different name.\n"; continue ;;
         *)  launch_claude "$dir"; return 0 ;;
       esac
     fi
@@ -1713,17 +1812,19 @@ cmd_interactive() {
     done
     local pick=""
     while :; do
-      pick="$(ask $'\nWhich app do you want to open?\n'"$menu"'> ')" || { ask_aborted; return 0; }
+      pick="$(ask $'\nWhich app do you want to open?\n'"$menu"$'Work in more than one? Type their numbers with spaces between, like: 1 2 3\n> ')" || { ask_aborted; return 0; }
       [[ -n "$pick" ]] || pick="1"
-      if [[ "$pick" =~ ^[0-9]+$ ]] && (( pick >= 1 && pick <= ${#STARTER_REPOS[@]} )); then
-        repo_key="$(starter_field "${STARTER_REPOS[$((pick - 1))]}" 1)"
-        break
-      fi
-      warn "Pick a number from the list above."
+      if repo_key="$(picks_to_keys "$pick")"; then break; fi
+      warn "Pick a number from the list above, or several with spaces between (like: 1 2 3)."
     done
   fi
 
   echo
+  # Several apps: one project each, named <name>-<app>, then a list to open from.
+  if [[ "$repo_key" == *" "* ]]; then
+    add_several_apps "$name" "$repo_key"
+    return 0
+  fi
   case "$choice" in
     2) cmd_new "$raw_name" "--html" ;;
     3) cmd_new "$raw_name" "--repo" "$repo_key" ;;
